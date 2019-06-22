@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>English</string>
+    <key>CFBundleExecutable</key>
+    <string>ft2-osx</string>
+    <key>CFBundleGetInfoString</key>
+    <string>Fasttracker II clone</string>
+    <key>CFBundleIconFile</key>
+    <string>ft2-osx.icns</string>
+    <key>CFBundleIdentifier</key>
+    <string>org.16-bits.FT2-osx</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>ft2-osx</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>v0.1</string>
+    <key>CFBundleSignature</key>
+    <string>Ft2c</string>
+    <key>CFBundleVersion</key>
+    <string>Beta</string>
+    <key>NSHumanReadableCopyright</key>
+    <string></string>
+    <key>LSMinimumSystemVersion</key>
+    <string>10.7</string>
+    <key>CGDisableCoalescedUpdates</key>
+    <true/>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+</dict>
+</plist>
