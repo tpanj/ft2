@@ -12,6 +12,8 @@
 #else
 #include <limits.h> // PATH_MAX
 #include <stdio.h> // FILE
+#endif
+#ifndef _MSC_VER
 #include <math.h> // M_*
 #endif
 #include "ft2_replayer.h"

@@ -30,4 +30,4 @@ BEGIN
 	END
 END
 
-IDI_MAIN_ICON ICON "gfxdata\\icon\\ft2-clone.ico"
+IDI_MAIN_ICON ICON "gfxdata/icon/ft2-clone.ico"

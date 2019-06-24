@@ -19,13 +19,17 @@ file(GLOB ft2-clone_SRC
 add_executable(ft2-clone ${ft2-clone_SRC})
 
 if (WIN32)
+  set(CMAKE_MFC_FLAG 1)
+  if (MINGW)
+    set(CMAKE_C_FLAGS "-msse2 -msse3")
+  endif ()
   target_compile_definitions(ft2-clone PRIVATE "BUILDER_STATIC_DEFINE;__WINDOWS_MM__;_CRTDBG_MAP_ALLOC;WIN32;_CRT_SECURE_NO_WARNINGS;_USE_MATH_DEFINES;HAVE_M_PI")
   target_link_libraries(ft2-clone PRIVATE SDL2-static SDL2main "shlwapi") # static
-else (WIN32)
+else ()
   target_compile_definitions(ft2-clone PRIVATE __LINUX_ALSA__ )
   target_link_libraries(ft2-clone
     PRIVATE m asound pthread SDL2-static SDL2main)
-endif (WIN32)
+endif ()
 
 install(TARGETS ft2-clone
         RUNTIME DESTINATION bin )
