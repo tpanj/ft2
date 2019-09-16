@@ -119,12 +119,15 @@ static bool saveRawSample(UNICHAR *filenameU, bool saveRangedData)
 	FILE *f;
 	sampleTyp *smp;
 
-	smp = &instr[editor.curInstr].samp[editor.curSmp];
-	if (smp->pek == NULL || smp->len == 0)
+	if (instr[editor.curInstr] == NULL ||
+		instr[editor.curInstr]->samp[editor.curSmp].pek == NULL ||
+		instr[editor.curInstr]->samp[editor.curSmp].len == 0)
 	{
 		okBoxThreadSafe(0, "System message", "Error saving sample: The sample is empty!");
 		return false;
 	}
+
+	smp = &instr[editor.curInstr]->samp[editor.curSmp];
 
 	if (saveRangedData)
 	{
@@ -189,12 +192,15 @@ static bool saveIFFSample(UNICHAR *filenameU, bool saveRangedData)
 	FILE *f;
 	sampleTyp *smp;
 
-	smp = &instr[editor.curInstr].samp[editor.curSmp];
-	if (smp->pek == NULL || smp->len == 0)
+	if (instr[editor.curInstr] == NULL ||
+		instr[editor.curInstr]->samp[editor.curSmp].pek == NULL ||
+		instr[editor.curInstr]->samp[editor.curSmp].len == 0)
 	{
 		okBoxThreadSafe(0, "System message", "Error saving sample: The sample is empty!");
 		return false;
 	}
+
+	smp = &instr[editor.curInstr]->samp[editor.curSmp];
 
 	f = UNICHAR_FOPEN(filenameU, "wb");
 	if (f == NULL)
@@ -318,7 +324,12 @@ static bool saveWAVSample(UNICHAR *filenameU, bool saveRangedData)
 	samplerChunk_t samplerChunk;
 	mptExtraChunk_t mptExtraChunk;
 
-	ins = &instr[editor.curInstr];
+	ins = instr[editor.curInstr];
+	if (ins == NULL)
+	{
+		okBoxThreadSafe(0, "System message", "Error saving sample: The sample is empty!");
+		return false;
+	}
 
 	smp = &ins->samp[editor.curSmp];
 	if (smp->pek == NULL || smp->len == 0)

@@ -18,6 +18,7 @@
 #include "ft2_midi.h"
 #include "ft2_mouse.h"
 #include "ft2_video.h"
+#include "ft2_palette.h"
 
 scrollBar_t scrollBars[NUM_SCROLLBARS] =
 {
@@ -334,6 +335,16 @@ void scrollBarScrollDown(uint16_t scrollBarID, uint32_t amount)
 		scrollBar->callbackFunc(scrollBar->pos);
 }
 
+void scrollBarScrollLeft(uint16_t scrollBarID, uint32_t amount)
+{
+	scrollBarScrollUp(scrollBarID, amount);
+}
+
+void scrollBarScrollRight(uint16_t scrollBarID, uint32_t amount)
+{
+	scrollBarScrollDown(scrollBarID, amount);
+}
+
 void setScrollBarPos(uint16_t scrollBarID, uint32_t pos, bool triggerCallBack)
 {
 	uint32_t endPos;
@@ -466,6 +477,11 @@ bool testScrollBarMouseDown(void)
 			mouse.lastUsedObjectID = i;
 			mouse.lastUsedObjectType = OBJECT_SCROLLBAR;
 
+			// kludge for when a system request is about to open
+			scrollBar->state = SCROLLBAR_PRESSED;
+			if (scrollBar->thumbType == SCROLLBAR_THUMB_NOFLAT)
+				drawScrollBar(mouse.lastUsedObjectType);
+
 			if (scrollBar->type == SCROLLBAR_HORIZONTAL)
 			{
 				mouse.lastScrollXTmp = mouse.lastScrollX = mouse.x;
@@ -511,6 +527,10 @@ bool testScrollBarMouseDown(void)
 				}
 			}
 
+			// objectID can be set to none in scrollbar's callback during setScrollBarPos()
+			if (mouse.lastUsedObjectID == OBJECT_ID_NONE)
+				return true;
+
 			scrollBar->state = SCROLLBAR_PRESSED;
 			if (scrollBar->thumbType == SCROLLBAR_THUMB_NOFLAT)
 				drawScrollBar(mouse.lastUsedObjectID);
@@ -546,7 +566,6 @@ void handleScrollBarsWhileMouseDown(void)
 	scrollBar_t *scrollBar;
 
 	assert(mouse.lastUsedObjectID >= 0 && mouse.lastUsedObjectID < NUM_SCROLLBARS);
-
 	scrollBar = &scrollBars[mouse.lastUsedObjectID];
 	if (!scrollBar->visible)
 		return;
@@ -570,7 +589,9 @@ void handleScrollBarsWhileMouseDown(void)
 
 			dTmp = round(((double)scrollX * scrollBar->end) / scrollBar->w);
 			setScrollBarPos(mouse.lastUsedObjectID, (int32_t)dTmp, true);
-			drawScrollBar(mouse.lastUsedObjectID);
+
+			if (mouse.lastUsedObjectID != OBJECT_ID_NONE) // this can change in the callback in setScrollBarPos()
+				drawScrollBar(mouse.lastUsedObjectID);
 		}
 	}
 	else
@@ -586,32 +607,11 @@ void handleScrollBarsWhileMouseDown(void)
 
 			dTmp = round(((double)scrollY * scrollBar->end) / scrollBar->h);
 			setScrollBarPos(mouse.lastUsedObjectID, (int32_t)dTmp, true);
-			drawScrollBar(mouse.lastUsedObjectID);
+
+			if (mouse.lastUsedObjectID != OBJECT_ID_NONE) // this can change in the callback in setScrollBarPos()
+				drawScrollBar(mouse.lastUsedObjectID);
 		}
 	}
-}
-
-// used to create a darker color for the loop pins in sample editor
-void updateLoopPinPalette(void)
-{
-	uint32_t pal;
-	int16_t r, g, b;
-
-	pal = video.palette[PAL_PATTEXT];
-
-	r = RGB_R(pal);
-	g = RGB_G(pal);
-	b = RGB_B(pal);
-
-	r -= 105;
-	g -= 105;
-	b -= 105;
-
-	if (r < 0) r = 0;
-	if (g < 0) g = 0;
-	if (b < 0) b = 0;
-
-	video.palette[PAL_LOOPPIN] = TO_RGB(r, g, b);
 }
 
 void initializeScrollBars(void)

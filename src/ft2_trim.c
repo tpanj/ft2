@@ -24,10 +24,44 @@ static uint8_t instrUsed[MAX_INST], instrOrder[MAX_INST], pattUsed[MAX_PATTERNS]
 static int16_t oldPattLens[MAX_PATTERNS], tmpPattLens[MAX_PATTERNS];
 static int64_t xmSize64 = -1, xmAfterTrimSize64 = -1, spaceSaved64 = -1;
 static tonTyp *oldPatts[MAX_PATTERNS], *tmpPatt[MAX_PATTERNS];
-static instrTyp tmpInstr[1 + MAX_INST], tmpInst[MAX_INST];
+static instrTyp *tmpInstr[1 + MAX_INST], *tmpInst[MAX_INST]; // tmpInstr[x] = copy of instr[x] for "after trim" size calculation
 static SDL_Thread *trimThread;
 
 void pbTrimCalc(void);
+
+static void freeTmpInstruments(void)
+{
+	for (int16_t i = 0; i <= MAX_INST; i++)
+	{
+		if (tmpInstr[i] != NULL)
+		{
+			free(tmpInstr[i]);
+			tmpInstr[i] = NULL;
+		}
+	}
+}
+
+static bool setTmpInstruments(void)
+{
+	freeTmpInstruments();
+
+	for (int16_t i = 0; i <= MAX_INST; i++)
+	{
+		if (instr[i] != NULL)
+		{
+			tmpInstr[i] = (instrTyp *)malloc(sizeof (instrTyp));
+			if (tmpInstr[i] == NULL)
+			{
+				freeTmpInstruments();
+				return false;
+			}
+
+			memcpy(tmpInstr[i], instr[i], sizeof (instrTyp));
+		}
+	}
+
+	return true;
+}
 
 static void remapInstrInSong(uint8_t src, uint8_t dst, int16_t ap)
 {
@@ -50,43 +84,26 @@ static void remapInstrInSong(uint8_t src, uint8_t dst, int16_t ap)
 	}
 }
 
-static bool tempInstrIsEmpty(uint16_t nr)
-{
-	assert(nr > 0 && nr <= MAX_INST);
-
-	// test if name is not empty
-	if (tmpInstrName[nr][0] != '\0')
-		return false;
-
-	// test data integrity against instrument 0, which is "empty" and non-editable
-	if (memcmp(&tmpInstr[nr], &tmpInstr[0], sizeof (instrTyp)) != 0)
-		return false;
-
-	// empty
-	return true;
-}
-
 static int16_t getUsedTempSamples(uint16_t nr)
 {
-	int8_t i;
+	int16_t i, j;
 	instrTyp *ins;
 
-	if (tempInstrIsEmpty(nr))
+	if (tmpInstr[nr] == NULL)
 		return 0;
 
-	ins = &tmpInstr[nr];
+	ins = tmpInstr[nr];
 
 	i = 16 - 1;
 	while (i >= 0 && ins->samp[i].pek == NULL && ins->samp[i].name[0] == '\0')
 		i--;
 
-	if (i >= 0)
+	/* Yes, 'i' can be -1 here, and will be set to at least 0
+	** because of ins->ta values. Possibly an FT2 bug... */
+	for (j = 0; j < 96; j++)
 	{
-		for (int8_t j = 0; j < 96; j++)
-		{
-			if (ins->ta[j] > i)
-				i = ins->ta[j];
-		}
+		if (ins->ta[j] > i)
+			i = ins->ta[j];
 	}
 
 	return i+1;
@@ -107,7 +124,7 @@ static int64_t getTempInsAndSmpSize(void)
 	// count instrument and sample data size in song
 	for (int16_t i = 1; i <= ai; i++)
 	{
-		if (tempInstrIsEmpty(i))
+		if (tmpInstr[i] == NULL)
 			j = 0;
 		else
 			j = i;
@@ -118,7 +135,7 @@ static int64_t getTempInsAndSmpSize(void)
 		else
 			currSize64 += 22+11;
 
-		ins = &tmpInstr[j];
+		ins = tmpInstr[j];
 		for (int16_t k = 0; k < a; k++)
 		{
 			if (ins->samp[k].pek != NULL)
@@ -137,7 +154,7 @@ static void wipeInstrUnused(bool testWipeSize, int16_t *ai, int16_t ap, uint8_t 
 
 	numInsts = *ai;
 
-	// calculate what instruments are used (slow method)
+	// calculate what instruments are used
 	memset(instrUsed, 0, numInsts);
 	for (i = 0; i < ap; i++)
 	{
@@ -189,13 +206,22 @@ static void wipeInstrUnused(bool testWipeSize, int16_t *ai, int16_t ap, uint8_t 
 
 	if (testWipeSize)
 	{
+		for (i = 0; i < numInsts; i++)
+		{
+			if (!instrUsed[i] && tmpInstr[1+i] != NULL)
+			{
+				free(tmpInstr[1+i]);
+				tmpInstr[1+i] = NULL;
+			}
+		}
+
 		// relocate instruments
 
 		memcpy(tmpInstName, &tmpInstrName[1], MAX_INST * sizeof (song.instrName[0]));
-		memcpy(tmpInst, &tmpInstr[1], MAX_INST * sizeof (instrTyp));
+		memcpy(tmpInst, &tmpInstr[1], MAX_INST * sizeof (instr[0]));
 
-		memset(&tmpInstrName[1], 0, numInsts * sizeof (song.instrName[0]));
-		memset(&tmpInstr[1], 0, numInsts * sizeof (instrTyp));
+		memset(&tmpInstr[1], 0, numInsts * sizeof (tmpInstr[0]));
+		memset(&tmpInstrName[1], 0, numInsts * sizeof (tmpInstrName[0]));
 
 		for (i = 0; i < numInsts; i++)
 		{
@@ -203,7 +229,7 @@ static void wipeInstrUnused(bool testWipeSize, int16_t *ai, int16_t ap, uint8_t 
 			{
 				newInst = instrOrder[i];
 
-				memcpy(&tmpInstr[1+newInst], &tmpInst[i], sizeof (instrTyp));
+				memcpy(&tmpInstr[1+newInst], &tmpInst[i], sizeof (tmpInst[0]));
 				strcpy(tmpInstrName[1+newInst], tmpInstName[i]);
 			}
 		}
@@ -216,32 +242,32 @@ static void wipeInstrUnused(bool testWipeSize, int16_t *ai, int16_t ap, uint8_t 
 	for (i = 0; i < numInsts; i++)
 	{
 		if (!instrUsed[i])
-			clearInstr(1 + (uint8_t)i);
+			freeInstr(1 + i);
 	}
 
 	// relocate instruments
 
 	memcpy(tmpInstName, &song.instrName[1], MAX_INST * sizeof (song.instrName[0]));
-	memcpy(tmpInst, &instr[1], MAX_INST * sizeof (instrTyp));
+	memcpy(tmpInst, &instr[1], MAX_INST * sizeof (instr[0]));
 
-	memset(&song.instrName[1], 0, numInsts * sizeof (song.instrName[0]));
-	memset(&instr[1], 0, numInsts * sizeof (instrTyp));
+	memset(&instr[1], 0, numInsts * sizeof (instr[0]));
+	memset(song.instrName[1], 0, numInsts * sizeof (song.instrName[0]));
 
 	for (i = 0; i < numInsts; i++)
 	{
-		setDefEnvelopes(1 + i); // instruments need this after clearing
-
 		if (instrUsed[i])
 		{
 			newInst = instrOrder[i];
 			remapInstrInSong(1 + (uint8_t)i, 1 + newInst, ap);
 
-			memcpy(&instr[1+newInst], &tmpInst[i], sizeof (instrTyp));
+			memcpy(&instr[1+newInst], &tmpInst[i], sizeof (instr[0]));
 			strcpy(song.instrName[1+newInst], tmpInstName[i]);
 		}
 	}
 
 	*ai = newNumInsts;
+
+	setTmpInstruments();
 }
 
 static void wipePattsUnused(bool testWipeSize, int16_t *ap)
@@ -344,22 +370,22 @@ static void wipeSamplesUnused(bool testWipeSize, int16_t ai)
 	{
 		if (!testWipeSize)
 		{
-			if (instrIsEmpty(i))
+			if (instr[i] == NULL)
 				l = 0;
 			else
 				l = i;
 
-			ins = &instr[l];
-			l   = getUsedSamples(i);
+			ins = instr[l];
+			l = getUsedSamples(i);
 		}
 		else
 		{
-			if (tempInstrIsEmpty(i))
+			if (tmpInstr[i] == NULL)
 				l = 0;
 			else
 				l = i;
 
-			ins = &tmpInstr[l];
+			ins = tmpInstr[l];
 			l = getUsedTempSamples(i);
 		}
 
@@ -436,22 +462,22 @@ static void wipeSmpDataAfterLoop(bool testWipeSize, int16_t ai)
 	{
 		if (!testWipeSize)
 		{
-			if (instrIsEmpty(i))
+			if (instr[i] == NULL)
 				l = 0;
 			else
 				l = i;
 
-			ins = &instr[l];
+			ins = instr[l];
 			l = getUsedSamples(i);
 		}
 		else
 		{
-			if (tempInstrIsEmpty(i))
+			if (tmpInstr[i] == NULL)
 				l = 0;
 			else
 				l = i;
 
-			ins = &tmpInstr[l];
+			ins = tmpInstr[l];
 			l = getUsedTempSamples(i);
 		}
 
@@ -499,29 +525,29 @@ static void convertSamplesTo8bit(bool testWipeSize, int16_t ai)
 	{
 		if (!testWipeSize)
 		{
-			if (instrIsEmpty(i))
+			if (instr[i] == NULL)
 				k = 0;
 			else
 				k = i;
 
-			ins = &instr[k];
+			ins = instr[k];
 			k = getUsedSamples(i);
 		}
 		else
 		{
-			if (tempInstrIsEmpty(i))
+			if (tmpInstr[i] == NULL)
 				k = 0;
 			else
 				k = i;
 
-			ins = &tmpInstr[k];
+			ins = tmpInstr[k];
 			k = getUsedTempSamples(i);
 		}
 
 		for (int16_t j = 0; j < k; j++)
 		{
 			s = &ins->samp[j];
-			if (s->pek != NULL && s->typ & 16 && s->len > 0)
+			if (s->pek != NULL && (s->typ & 16) && s->len > 0)
 			{
 				if (testWipeSize)
 				{
@@ -656,7 +682,7 @@ static int64_t calculateXMSize(void)
 	while (ap > 0);
 
 	// count number of instruments
-	ai = MAX_INST;
+	ai = 128;
 	while (ai > 0 && getUsedSamples(ai) == 0 && song.instrName[ai][0] == '\0')
 		ai--;
 
@@ -671,7 +697,7 @@ static int64_t calculateXMSize(void)
 	// count instrument and sample data size in song
 	for (i = 1; i <= ai; i++)
 	{
-		if (instrIsEmpty(i))
+		if (instr[i] == NULL)
 			j = 0;
 		else
 			j = i;
@@ -682,7 +708,7 @@ static int64_t calculateXMSize(void)
 		else
 			currSize64 += 22+11;
 
-		ins = &instr[j];
+		ins = instr[j];
 		for (int16_t k = 0; k < a; k++)
 		{
 			if (ins->samp[k].pek != NULL)
@@ -710,8 +736,13 @@ static int64_t calculateTrimSize(void)
 	// copy over temp data
 	memcpy(tmpPatt, patt, sizeof (tmpPatt));
 	memcpy(tmpPattLens, pattLens, sizeof (tmpPattLens));
-	memcpy(tmpInstr, instr, sizeof (tmpInstr));
 	memcpy(tmpInstrName, song.instrName, sizeof (tmpInstrName));
+
+	if (!setTmpInstruments())
+	{
+		okBox(0, "System message", "Not enough memory!");
+		return 0;
+	}
 
 	// get current size of all instruments and their samples
 	if (removeInst || removeSamp || removeSmpDataAfterLoop || convSmpsTo8Bit)
@@ -823,6 +854,7 @@ static int64_t calculateTrimSize(void)
 			bytes64 += (oldInstrSize64 - newInstrSize64);
 	}
 
+	freeTmpInstruments();
 	return bytes64;
 }
 
@@ -832,6 +864,12 @@ static int32_t SDLCALL trimThreadFunc(void *ptr)
 	tonTyp *pattPtr, *note;
 
 	(void)ptr;
+
+	if (!setTmpInstruments())
+	{
+		okBoxThreadSafe(0, "System message", "Not enough memory!");
+		return true;
+	}
 
 	// audio callback is not running now, so we're safe
 
@@ -923,6 +961,7 @@ static int32_t SDLCALL trimThreadFunc(void *ptr)
 	if (removeInst)
 		wipeInstrUnused(false, &ai, ap, song.antChn);
 
+	freeTmpInstruments();
 	editor.trimThreadWasDone = true;
 
 	return true;
@@ -938,6 +977,8 @@ void trimThreadDone(void)
 		editor.currVolEnvPoint = 0;
 		editor.currPanEnvPoint = 0;
 	}
+
+	updateTextBoxPointers();
 
 	hideTopScreen();
 	showTopScreen(true);
@@ -961,55 +1002,53 @@ void trimThreadDone(void)
 		updateSampleEditorSample();
 
 	pbTrimCalc();
-
 	setSongModifiedFlag();
-	unlockMixerCallback();
-
+	resumeAudio();
 	setMouseBusy(false);
 }
 
-static char *formatBytes(uint64_t bytes)
+static char *formatBytes(uint64_t bytes, bool roundUp)
 {
 	double dBytes;
 
 	if (bytes == 0)
 	{
-		strcpy(byteFormatBuffer, "0 bytes");
+		strcpy(byteFormatBuffer, "0");
 		return byteFormatBuffer;
 	}
 
-	bytes %= 1000ULL*1024*1024*999; // wrap around gigabytes in case of overflow (uh-oh)
+	bytes %= 1000ULL*1024*1024*999; // wrap around gigabytes in case of overflow
 	if (bytes >= 1024ULL*1024*1024*9)
 	{
 		// gigabytes
-		dBytes = bytes / (1024.0 * 1024.0 * 1024.0);
+		dBytes = bytes / (1024.0*1024.0*1024.0);
 		if (dBytes < 100)
-			sprintf(byteFormatBuffer, "%.3fGB", dBytes);
+			sprintf(byteFormatBuffer, "%.1fGB", dBytes);
 		else
-			sprintf(byteFormatBuffer, "%dGB", (int32_t)round(dBytes));
+			sprintf(byteFormatBuffer, "%dGB", roundUp ? (int32_t)ceil(dBytes) : (int32_t)dBytes);
 	}
 	else if (bytes >= 1024*1024*9)
 	{
 		// megabytes
-		dBytes = bytes / (1024.0 * 1024.0);
+		dBytes = bytes / (1024.0*1024.0);
 		if (dBytes < 100)
-			sprintf(byteFormatBuffer, "%.3fMB", dBytes);
+			sprintf(byteFormatBuffer, "%.1fMB", dBytes);
 		else
-			sprintf(byteFormatBuffer, "%dMB", (int32_t)round(dBytes));
+			sprintf(byteFormatBuffer, "%dMB", roundUp ? (int32_t)ceil(dBytes) : (int32_t)dBytes);
 	}
 	else if (bytes >= 1024*9)
 	{
 		// kilobytes
 		dBytes = bytes / 1024.0;
 		if (dBytes < 100)
-			sprintf(byteFormatBuffer, "%.3fkB", dBytes);
+			sprintf(byteFormatBuffer, "%.1fkB", dBytes);
 		else
-			sprintf(byteFormatBuffer, "%dkB", (int32_t)round(dBytes));
+			sprintf(byteFormatBuffer, "%dkB", roundUp ? (int32_t)ceil(dBytes) : (int32_t)dBytes);
 	}
 	else
 	{
 		// bytes
-		sprintf(byteFormatBuffer, "%dB", (int32_t)bytes);
+		sprintf(byteFormatBuffer, "%d", (int32_t)bytes);
 	}
 
 	return byteFormatBuffer;
@@ -1036,32 +1075,32 @@ void drawTrimScreen(void)
 
 	if (xmSize64 > -1)
 	{
-		sprintf(sizeBuf, "%s", formatBytes(xmSize64));
-		textOut(234, 111, PAL_FORGRND, sizeBuf);
+		sprintf(sizeBuf, "%s", formatBytes(xmSize64, true));
+		textOut(287 - textWidth(sizeBuf), 111, PAL_FORGRND, sizeBuf);
 	}
 	else
 	{
-		textOut(234, 111, PAL_FORGRND, "Unknown");
+		textOut(287 - textWidth("Unknown"), 111, PAL_FORGRND, "Unknown");
 	}
 
 	if (xmAfterTrimSize64 > -1)
 	{
-		sprintf(sizeBuf, "%s", formatBytes(xmAfterTrimSize64));
-		textOut(234, 124, PAL_FORGRND, sizeBuf);
+		sprintf(sizeBuf, "%s", formatBytes(xmAfterTrimSize64, true));
+		textOut(287 - textWidth(sizeBuf), 124, PAL_FORGRND, sizeBuf);
 	}
 	else
 	{
-		textOut(234, 124, PAL_FORGRND, "Unknown");
+		textOut(287 - textWidth("Unknown"), 124, PAL_FORGRND, "Unknown");
 	}
 
 	if (spaceSaved64 > -1)
 	{
-		sprintf(sizeBuf, "%s", formatBytes(spaceSaved64));
-		textOut(234, 137, PAL_FORGRND, sizeBuf);
+		sprintf(sizeBuf, "%s", formatBytes(spaceSaved64, false));
+		textOut(287 - textWidth(sizeBuf), 137, PAL_FORGRND, sizeBuf);
 	}
 	else
 	{
-		textOut(234, 137, PAL_FORGRND, "Unknown");
+		textOut(287 - textWidth("Unknown"), 137, PAL_FORGRND, "Unknown");
 	}
 
 	showCheckBox(CB_TRIM_PATT);
@@ -1181,12 +1220,12 @@ void pbTrimDoTrim(void)
 		return;
 
 	mouseAnimOn();
-	lockMixerCallback();
+	pauseAudio();
 
 	trimThread = SDL_CreateThread(trimThreadFunc, NULL, NULL);
 	if (trimThread == NULL)
 	{
-		unlockMixerCallback();
+		resumeAudio();
 		mouseAnimOff();
 		return;
 	}

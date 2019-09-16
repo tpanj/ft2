@@ -50,7 +50,7 @@ int8_t scancodeKeyToNote(SDL_Scancode scancode)
 		note = scancodeKey2Note[(int32_t)scancode - SDL_SCANCODE_B];
 
 	if (note == 0)
-		return -1; // not a note key, do further key handling (non-notes)
+		return -1; // not a note key, do further key handling
 
 	return note + (editor.curOctave * 12);
 }
@@ -260,15 +260,13 @@ static void handleKeys(SDL_Keycode keycode, SDL_Scancode scanKey)
 				}
 				else
 				{
-					if (editor.curInstr == 0 || instrIsEmpty(editor.curInstr))
+					if (editor.curInstr == 0 || instr[editor.curInstr] == NULL)
 						return;
 
 					if (okBox(1, "System request", "Clear instrument?") == 1)
 					{
-						lockMixerCallback();
-						clearInstr(editor.curInstr);
+						freeInstr(editor.curInstr);
 						updateNewInstrument();
-						unlockMixerCallback();
 						setSongModifiedFlag();
 					}
 				}
@@ -848,7 +846,12 @@ static bool checkModifiedKeys(SDL_Keycode keycode)
 				resetFPSCounter();
 				video.showFPSCounter ^= 1;
 				if (!video.showFPSCounter)
-					showBottomScreen();
+				{
+					if (editor.ui.extended) // kludge, my best friend
+						exitPatternEditorExtended();
+
+					showTopScreen(false);
+				}
 			}
 			else if (keyb.leftAltPressed)
 			{

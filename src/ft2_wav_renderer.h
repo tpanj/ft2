@@ -1,6 +1,6 @@
-#ifndef __FT2_WAV_RENDERER_H
-#define __FT2_WAV_RENDERER_H
+#pragma once
 
+#include <stdint.h>
 #include "ft2_header.h"
 
 #define MIN_WAV_RENDER_FREQ 8000
@@ -26,5 +26,3 @@ void pbWavSongEndDown(void);
 void resetWavRenderer(void);
 void rbWavRenderBitDepth16(void);
 void rbWavRenderBitDepth32(void);
-
-#endif

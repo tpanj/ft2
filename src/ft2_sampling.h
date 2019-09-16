@@ -1,8 +1,5 @@
-#ifndef __FT2_SAMPLING_H
-#define __FT2_SAMPLING_H
+#pragma once
 
 void startSampling(void);
 void stopSampling(void);
 void handleSamplingUpdates(void);
-
-#endif

@@ -1,5 +1,4 @@
-#ifndef __FT2_KEYBOARD_H
-#define __FT2_KEYBOARD_H
+#pragma once
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -17,5 +16,3 @@ int8_t scancodeKeyToNote(SDL_Scancode scancode);
 void keyUpHandler(SDL_Scancode scancode, SDL_Keycode keycode);
 void keyDownHandler(SDL_Scancode scancode, SDL_Keycode keycode, bool keyWasRepeated);
 void readKeyModifiers(void);
-
-#endif

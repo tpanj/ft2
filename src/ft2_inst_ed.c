@@ -111,44 +111,58 @@ extern int16_t *note2Period; // ft2_replayer.c
 void updateInstEditor(void);
 void updateNewInstrument(void);
 
+static instrTyp *getCurDispInstr(void)
+{
+	if (instr[editor.curInstr] == NULL)
+		return instr[131];
+
+	return instr[editor.curInstr];
+}
+
 static int32_t SDLCALL copyInstrThread(void *ptr)
 {
+	bool error;
 	int8_t *p;
-	instrTyp *dst, *src;
-	sampleTyp *dstSmp, *srcSmp;
+	int16_t destIns, sourceIns;
 
 	(void)ptr;
 
+	error = false;
+
+	destIns = editor.curInstr;
+	sourceIns = editor.srcInstr;
+
 	pauseAudio();
+	
+	freeInstr(destIns);
 
-	src = &instr[editor.srcInstr];
-	dst = &instr[editor.curInstr];
-
-	// copy over instrument
-	*dst = *src;
-
-	// copy over sample datas
-	for (uint32_t i = 0; i < MAX_SMP_PER_INST; i++)
+	if (instr[sourceIns] != NULL)
 	{
-		srcSmp = &src->samp[i];
-		dstSmp = &dst->samp[i];
-
-		dstSmp->pek = NULL;
-		if (srcSmp->pek != NULL)
+		if (allocateInstr(destIns))
 		{
-			p = (int8_t *)malloc(srcSmp->len + LOOP_FIX_LEN);
-			if (p == NULL)
+			memcpy(instr[destIns], instr[sourceIns], sizeof (instrTyp));
+			for (int16_t i = 0; i < MAX_SMP_PER_INST; i++)
 			{
-				okBoxThreadSafe(0, "System message", "Not enough memory!");
-				break;
+				instr[destIns]->samp[i].pek = NULL;
+				if (instr[sourceIns]->samp[i].pek != NULL)
+				{
+					p = (int8_t *)malloc(instr[sourceIns]->samp[i].len + LOOP_FIX_LEN);
+					if (p != NULL)
+					{
+						memcpy(p, instr[sourceIns]->samp[i].pek, instr[sourceIns]->samp[i].len + LOOP_FIX_LEN);
+						instr[destIns]->samp[i].pek = p;
+					}
+					else error = true;
+				}
 			}
-
-			memcpy(p, srcSmp->pek, srcSmp->len + LOOP_FIX_LEN);
-			dstSmp->pek = p;
 		}
+		else error = true;
 	}
 
 	resumeAudio();
+
+	if (error)
+		okBoxThreadSafe(0, "System message", "Not enough memory!");
 
 	// do not change instrument names!
 
@@ -184,8 +198,8 @@ void xchgInstr(void) // dstInstr <-> srcInstr
 
 	lockMixerCallback();
 
-	src = &instr[editor.srcInstr];
-	dst = &instr[editor.curInstr];
+	src = instr[editor.srcInstr];
+	dst = instr[editor.curInstr];
 
 	// swap instruments
 	dstTmp = *dst;
@@ -203,7 +217,7 @@ void xchgInstr(void) // dstInstr <-> srcInstr
 static void drawMIDICh(void)
 {
 	char str[8];
-	instrTyp *ins = &instr[editor.curInstr];
+	instrTyp *ins = getCurDispInstr();
 
 	assert(ins->midiChannel <= 15);
 	sprintf(str, "%02d", ins->midiChannel + 1);
@@ -213,7 +227,7 @@ static void drawMIDICh(void)
 static void drawMIDIPrg(void)
 {
 	char str[8];
-	instrTyp *ins = &instr[editor.curInstr];
+	instrTyp *ins = getCurDispInstr();
 
 	assert(ins->midiProgram <= 127);
 	sprintf(str, "%03d", ins->midiProgram);
@@ -223,127 +237,54 @@ static void drawMIDIPrg(void)
 static void drawMIDIBend(void)
 {
 	char str[8];
-	instrTyp *ins = &instr[editor.curInstr];
+	instrTyp *ins = getCurDispInstr();
 
 	assert(ins->midiBend <= 36);
-	sprintf(str, "%02d", ins->midiBend );
+	sprintf(str, "%02d", ins->midiBend);
 	textOutFixed(156, 160, PAL_FORGRND, PAL_DESKTOP, str);
 }
 
 void midiChDown(void)
 {
-	instrTyp *ins;
-
-	if (editor.curInstr == 0)
-		return;
-
-	ins = &instr[editor.curInstr];
-	if (ins->midiChannel > 0)
-	{
-		ins->midiChannel--;
-		drawMIDICh();
-		setScrollBarPos(SB_INST_EXT_MIDI_CH, ins->midiChannel, false);
-		setSongModifiedFlag();
-	}
+	scrollBarScrollLeft(SB_INST_EXT_MIDI_CH, 1);
 }
 
 void midiChUp(void)
 {
-	instrTyp *ins;
-
-	if (editor.curInstr == 0)
-		return;
-
-	ins = &instr[editor.curInstr];
-	if (ins->midiChannel < 15)
-	{
-		ins->midiChannel++;
-		drawMIDICh();
-		setScrollBarPos(SB_INST_EXT_MIDI_CH, ins->midiChannel, false);
-		setSongModifiedFlag();
-	}
+	scrollBarScrollRight(SB_INST_EXT_MIDI_CH, 1);
 }
 
 void midiPrgDown(void)
 {
-	instrTyp *ins;
-
-	if (editor.curInstr == 0)
-		return;
-
-	ins = &instr[editor.curInstr];
-	if (ins->midiProgram > 0)
-	{
-		ins->midiProgram--;
-		drawMIDIPrg();
-		setScrollBarPos(SB_INST_EXT_MIDI_PRG, ins->midiProgram, false);
-		setSongModifiedFlag();
-	}
+	scrollBarScrollLeft(SB_INST_EXT_MIDI_PRG, 1);
 }
 
 void midiPrgUp(void)
 {
-	instrTyp *ins;
-
-	if (editor.curInstr == 0)
-		return;
-
-	ins = &instr[editor.curInstr];
-	if (ins->midiProgram < 127)
-	{
-		ins->midiProgram++;
-		drawMIDIPrg();
-		setScrollBarPos(SB_INST_EXT_MIDI_PRG, ins->midiProgram, false);
-		setSongModifiedFlag();
-	}
+	scrollBarScrollRight(SB_INST_EXT_MIDI_PRG, 1);
 }
 
 void midiBendDown(void)
 {
-	instrTyp *ins;
-
-	if (editor.curInstr == 0)
-		return;
-
-	ins = &instr[editor.curInstr];
-	if (ins->midiBend > 0)
-	{
-		ins->midiBend--;
-		drawMIDIBend();
-		setScrollBarPos(SB_INST_EXT_MIDI_BEND, ins->midiBend, false);
-		setSongModifiedFlag();
-	}
+	scrollBarScrollLeft(SB_INST_EXT_MIDI_BEND, 1);
 }
 
 void midiBendUp(void)
 {
-	instrTyp *ins;
-
-	if (editor.curInstr == 0)
-		return;
-
-	ins = &instr[editor.curInstr];
-	if (ins->midiBend < 36)
-	{
-		ins->midiBend++;
-		drawMIDIBend();
-		setScrollBarPos(SB_INST_EXT_MIDI_BEND, ins->midiBend, false);
-		setSongModifiedFlag();
-	}
+	scrollBarScrollRight(SB_INST_EXT_MIDI_BEND, 1);
 }
 
 void sbMidiChPos(uint32_t pos)
 {
-	instrTyp *ins;
+	instrTyp *ins = instr[editor.curInstr];
 
-	if (editor.curInstr == 0)
+	if (ins == NULL || editor.curInstr == 0)
 	{
 		setScrollBarPos(SB_INST_EXT_MIDI_CH, 0, false);
 		return;
 	}
 
-	ins = &instr[editor.curInstr];
-	if ((uint8_t)pos != ins->midiChannel)
+	if (ins->midiChannel != (uint8_t)pos)
 	{
 		ins->midiChannel = (uint8_t)pos;
 		drawMIDICh();
@@ -353,16 +294,15 @@ void sbMidiChPos(uint32_t pos)
 
 void sbMidiPrgPos(uint32_t pos)
 {
-	instrTyp *ins;
+	instrTyp *ins = instr[editor.curInstr];
 
-	if (editor.curInstr == 0)
+	if (ins == NULL || editor.curInstr == 0)
 	{
 		setScrollBarPos(SB_INST_EXT_MIDI_PRG, 0, false);
 		return;
 	}
 
-	ins = &instr[editor.curInstr];
-	if ((int16_t)pos != ins->midiProgram)
+	if (ins->midiProgram != (int16_t)pos)
 	{
 		ins->midiProgram = (int16_t)pos;
 		drawMIDIPrg();
@@ -372,16 +312,15 @@ void sbMidiPrgPos(uint32_t pos)
 
 void sbMidiBendPos(uint32_t pos)
 {
-	instrTyp *ins;
+	instrTyp *ins = instr[editor.curInstr];
 
-	if (editor.curInstr == 0)
+	if (ins == NULL || editor.curInstr == 0)
 	{
 		setScrollBarPos(SB_INST_EXT_MIDI_BEND, 0, false);
 		return;
 	}
 
-	ins = &instr[editor.curInstr];
-	if ((int16_t)pos != ins->midiBend)
+	if (ins->midiBend != (int16_t)pos)
 	{
 		ins->midiBend = (int16_t)pos;
 		drawMIDIBend();
@@ -405,6 +344,8 @@ void updateNewSample(void)
 
 void updateNewInstrument(void)
 {
+	updateTextBoxPointers();
+
 	if (editor.ui.instrSwitcherShown)
 		updateInstrumentSwitcher();
 
@@ -426,63 +367,95 @@ void updateNewInstrument(void)
 static void drawVolEnvSus(void)
 {
 	char str[8];
-	sprintf(str, "%02d", instr[editor.curInstr].envVSust);
+	instrTyp *ins = getCurDispInstr();
+
+	sprintf(str, "%02d", ins->envVSust);
 	textOutFixed(382, 206, PAL_FORGRND, PAL_DESKTOP, str);
 }
 
 static void drawVolEnvRepS(void)
 {
 	char str[8];
-	sprintf(str, "%02d", instr[editor.curInstr].envVRepS);
+	instrTyp *ins = getCurDispInstr();
+
+	sprintf(str, "%02d", ins->envVRepS);
 	textOutFixed(382, 234, PAL_FORGRND, PAL_DESKTOP, str);
 }
 
 static void drawVolEnvRepE(void)
 {
 	char str[8];
-	sprintf(str, "%02d", instr[editor.curInstr].envVRepE);
+	instrTyp *ins = getCurDispInstr();
+
+	sprintf(str, "%02d", ins->envVRepE);
 	textOutFixed(382, 247, PAL_FORGRND, PAL_DESKTOP, str);
 }
 
 static void drawPanEnvSus(void)
 {
 	char str[8];
-	sprintf(str, "%02d", instr[editor.curInstr].envPSust);
+	instrTyp *ins = getCurDispInstr();
+
+	sprintf(str, "%02d", ins->envPSust);
 	textOutFixed(382, 294, PAL_FORGRND, PAL_DESKTOP, str);
 }
 
 static void drawPanEnvRepS(void)
 {
 	char str[8];
-	sprintf(str, "%02d", instr[editor.curInstr].envPRepS);
+	instrTyp *ins = getCurDispInstr();
+
+	sprintf(str, "%02d", ins->envPRepS);
 	textOutFixed(382, 321, PAL_FORGRND, PAL_DESKTOP, str);
 }
 
 static void drawPanEnvRepE(void)
 {
 	char str[8];
-	sprintf(str, "%02d", instr[editor.curInstr].envPRepE);
+	instrTyp *ins = getCurDispInstr();
+
+	sprintf(str, "%02d", ins->envPRepE);
 	textOutFixed(382, 335, PAL_FORGRND, PAL_DESKTOP, str);
 }
 
 static void drawVolume(void)
 {
-	hexOutBg(505, 178, PAL_FORGRND, PAL_DESKTOP, instr[editor.curInstr].samp[editor.curSmp].vol, 2);
+	sampleTyp *s;
+
+	if (instr[editor.curInstr] == NULL)
+		s = &instr[0]->samp[0];
+	else
+		s = &instr[editor.curInstr]->samp[editor.curSmp];
+
+	hexOutBg(505, 178, PAL_FORGRND, PAL_DESKTOP, s->vol, 2);
 }
 
 static void drawPanning(void)
 {
-	hexOutBg(505, 192, PAL_FORGRND, PAL_DESKTOP, instr[editor.curInstr].samp[editor.curSmp].pan, 2);
+	sampleTyp *s;
+
+	if (instr[editor.curInstr] == NULL)
+		s = &instr[0]->samp[0];
+	else
+		s = &instr[editor.curInstr]->samp[editor.curSmp];
+
+	hexOutBg(505, 192, PAL_FORGRND, PAL_DESKTOP, s->pan, 2);
 }
 
 static void drawFineTune(void)
 {
 	char sign;
 	int16_t ftune;
+	sampleTyp *s;
+
+	if (instr[editor.curInstr] == NULL)
+		s = &instr[0]->samp[0];
+	else
+		s = &instr[editor.curInstr]->samp[editor.curSmp];
 
 	fillRect(491, 205, 27, 8, PAL_DESKTOP);
 
-	ftune = instr[editor.curInstr].samp[editor.curSmp].fine;
+	ftune = s->fine;
 	if (ftune == 0)
 	{
 		charOut(512, 205, PAL_FORGRND, '0');
@@ -514,31 +487,39 @@ static void drawFineTune(void)
 
 static void drawFadeout(void)
 {
-	hexOutBg(498, 222, PAL_FORGRND, PAL_DESKTOP, instr[editor.curInstr].fadeOut, 3);
+	hexOutBg(498, 222, PAL_FORGRND, PAL_DESKTOP, getCurDispInstr()->fadeOut, 3);
 }
 
 static void drawVibSpeed(void)
 {
-	hexOutBg(505, 236, PAL_FORGRND, PAL_DESKTOP, instr[editor.curInstr].vibRate, 2);
+	hexOutBg(505, 236, PAL_FORGRND, PAL_DESKTOP, getCurDispInstr()->vibRate, 2);
 }
 
 static void drawVibDepth(void)
 {
-	hexOutBg(512, 250, PAL_FORGRND, PAL_DESKTOP, instr[editor.curInstr].vibDepth, 1);
+	hexOutBg(512, 250, PAL_FORGRND, PAL_DESKTOP, getCurDispInstr()->vibDepth, 1);
 }
 
 static void drawVibSweep(void)
 {
-	hexOutBg(505, 264, PAL_FORGRND, PAL_DESKTOP, instr[editor.curInstr].vibSweep, 2);
+	hexOutBg(505, 264, PAL_FORGRND, PAL_DESKTOP, getCurDispInstr()->vibSweep, 2);
 }
 
 static void drawRelTone(void)
 {
 	char noteChar1, noteChar2, octaChar;
 	int8_t note2, note;
-	instrTyp *ins = &instr[editor.curInstr];
 
-	note2 = 48 + ins->samp[editor.curSmp].relTon;
+	if (instr[editor.curInstr] == NULL)
+	{
+		fillRect(598, 299, 8*3, 8, PAL_BCKGRND);
+		return;
+	}
+
+	if (editor.curInstr == 0)
+		note2 = 48;
+	else
+		note2 = 48 + instr[editor.curInstr]->samp[editor.curSmp].relTon;
 
 	note = note2 % 12;
 	if (config.ptnAcc == 0)
@@ -566,16 +547,16 @@ static void setStdVolEnvelope(instrTyp *ins, uint8_t num)
 
 	pauseMusic();
 
-	ins->fadeOut  = config.stdFadeOut[num];
+	ins->fadeOut = config.stdFadeOut[num];
 	ins->envVSust = (uint8_t)config.stdVolEnvSust[num];
 	ins->envVRepS = (uint8_t)config.stdVolEnvRepS[num];
 	ins->envVRepE = (uint8_t)config.stdVolEnvRepE[num];
 	ins->envVPAnt = (uint8_t)config.stdVolEnvAnt[num];
-	ins->envVTyp  = (uint8_t)config.stdVolEnvTyp[num];
-	ins->vibRate  = (uint8_t)config.stdVibRate[num];
+	ins->envVTyp = (uint8_t)config.stdVolEnvTyp[num];
+	ins->vibRate = (uint8_t)config.stdVibRate[num];
 	ins->vibDepth = (uint8_t)config.stdVibDepth[num];
 	ins->vibSweep = (uint8_t)config.stdVibSweep[num];
-	ins->vibTyp   = (uint8_t)config.stdVibTyp[num];
+	ins->vibTyp = (uint8_t)config.stdVibTyp[num];
 
 	memcpy(ins->envVP, config.stdEnvP[num][0], sizeof (int16_t) * 12 * 2);
 
@@ -593,7 +574,7 @@ static void setStdPanEnvelope(instrTyp *ins, uint8_t num)
 	ins->envPSust = (uint8_t)config.stdPanEnvSust[num];
 	ins->envPRepS = (uint8_t)config.stdPanEnvRepS[num];
 	ins->envPRepE = (uint8_t)config.stdPanEnvRepE[num];
-	ins->envPTyp  = (uint8_t)config.stdPanEnvTyp[num];
+	ins->envPTyp = (uint8_t)config.stdPanEnvTyp[num];
 
 	memcpy(ins->envPP, config.stdEnvP[num][1], sizeof (int16_t) * 12 * 2);
 
@@ -602,12 +583,10 @@ static void setStdPanEnvelope(instrTyp *ins, uint8_t num)
 
 static void setOrStoreVolEnvPreset(uint8_t num)
 {
-	instrTyp *ins;
+	instrTyp *ins = instr[editor.curInstr];
 
-	if (editor.curInstr == 0)
+	if (ins == NULL || editor.curInstr == 0)
 		return;
-
-	ins = &instr[editor.curInstr];
 
 	if (mouse.rightButtonReleased)
 	{
@@ -637,12 +616,10 @@ static void setOrStoreVolEnvPreset(uint8_t num)
 
 static void setOrStorePanEnvPreset(uint8_t num)
 {
-	instrTyp *ins;
+	instrTyp *ins = instr[editor.curInstr];
 
-	if (editor.curInstr == 0)
+	if (ins == NULL || editor.curInstr == 0)
 		return;
-
-	ins = &instr[editor.curInstr];
 
 	if (mouse.rightButtonReleased)
 	{
@@ -746,10 +723,10 @@ void relToneOctUp(void)
 {
 	sampleTyp *s;
 
-	if (editor.curInstr == 0)
+	if (instr[editor.curInstr] == NULL || editor.curInstr == 0)
 		return;
 
-	s = &instr[editor.curInstr].samp[editor.curSmp];
+	s = &instr[editor.curInstr]->samp[editor.curSmp];
 	if (s->relTon <= 71-12)
 		s->relTon += 12;
 	else
@@ -763,10 +740,10 @@ void relToneOctDown(void)
 {
 	sampleTyp *s;
 
-	if (editor.curInstr == 0)
+	if (instr[editor.curInstr] == NULL || editor.curInstr == 0)
 		return;
 
-	s = &instr[editor.curInstr].samp[editor.curSmp];
+	s = &instr[editor.curInstr]->samp[editor.curSmp];
 	if (s->relTon >= -48+12)
 		s->relTon -= 12;
 	else
@@ -780,10 +757,10 @@ void relToneUp(void)
 {
 	sampleTyp *s;
 
-	if (editor.curInstr == 0)
+	if (instr[editor.curInstr] == NULL || editor.curInstr == 0)
 		return;
 
-	s = &instr[editor.curInstr].samp[editor.curSmp];
+	s = &instr[editor.curInstr]->samp[editor.curSmp];
 	if (s->relTon < 71)
 	{
 		s->relTon++;
@@ -796,10 +773,10 @@ void relToneDown(void)
 {
 	sampleTyp *s;
 
-	if (editor.curInstr == 0)
+	if (instr[editor.curInstr] == NULL || editor.curInstr == 0)
 		return;
 
-	s = &instr[editor.curInstr].samp[editor.curSmp];
+	s = &instr[editor.curInstr]->samp[editor.curSmp];
 	if (s->relTon > -48)
 	{
 		s->relTon--;
@@ -811,13 +788,9 @@ void relToneDown(void)
 void volEnvAdd(void)
 {
 	int16_t i;
-	instrTyp *ins;
+	instrTyp *ins = instr[editor.curInstr];
 
-	if (editor.curInstr == 0)
-		return;
-
-	ins = &instr[editor.curInstr];
-	if (ins->envVPAnt >= 12)
+	if (ins == NULL || editor.curInstr == 0 || ins->envVPAnt >= 12)
 		return;
 
 	i = (int16_t)editor.currVolEnvPoint;
@@ -865,13 +838,9 @@ void volEnvDel(void)
 {
 	uint8_t drawSust, drawRepS, drawRepE;
 	int16_t i;
-	instrTyp *ins;
+	instrTyp *ins = instr[editor.curInstr];
 
-	if (editor.curInstr == 0)
-		return;
-
-	ins = &instr[editor.curInstr];
-	if (ins->envVPAnt <= 2)
+	if (ins == NULL || editor.curInstr == 0 || ins->envVPAnt <= 2)
 		return;
 
 	i = (int16_t)editor.currVolEnvPoint;
@@ -909,15 +878,14 @@ void volEnvDel(void)
 
 void volEnvSusUp(void)
 {
-	instrTyp *i;
+	instrTyp *ins = instr[editor.curInstr];
 
-	if (editor.curInstr == 0)
+	if (ins == NULL || editor.curInstr == 0)
 		return;
 
-	i = &instr[editor.curInstr];
-	if (i->envVSust < i->envVPAnt-1)
+	if (ins->envVSust < ins->envVPAnt-1)
 	{
-		i->envVSust++;
+		ins->envVSust++;
 		drawVolEnvSus();
 		updateVolEnv = true;
 		setSongModifiedFlag();
@@ -926,15 +894,14 @@ void volEnvSusUp(void)
 
 void volEnvSusDown(void)
 {
-	instrTyp *i;
+	instrTyp *ins = instr[editor.curInstr];
 
-	if (editor.curInstr == 0)
+	if (ins == NULL || editor.curInstr == 0)
 		return;
 
-	i = &instr[editor.curInstr];
-	if (i->envVSust > 0)
+	if (ins->envVSust > 0)
 	{
-		i->envVSust--;
+		ins->envVSust--;
 		drawVolEnvSus();
 		updateVolEnv = true;
 		setSongModifiedFlag();
@@ -943,15 +910,14 @@ void volEnvSusDown(void)
 
 void volEnvRepSUp(void)
 {
-	instrTyp *i;
+	instrTyp *ins = instr[editor.curInstr];
 
-	if (editor.curInstr == 0)
+	if (ins == NULL || editor.curInstr == 0)
 		return;
 
-	i = &instr[editor.curInstr];
-	if (i->envVRepS < i->envVRepE)
+	if (ins->envVRepS < ins->envVRepE)
 	{
-		i->envVRepS++;
+		ins->envVRepS++;
 		drawVolEnvRepS();
 		updateVolEnv = true;
 		setSongModifiedFlag();
@@ -960,15 +926,14 @@ void volEnvRepSUp(void)
 
 void volEnvRepSDown(void)
 {
-	instrTyp *i;
+	instrTyp *ins = instr[editor.curInstr];
 
-	if (editor.curInstr == 0)
+	if (ins == NULL || editor.curInstr == 0)
 		return;
 
-	i = &instr[editor.curInstr];
-	if (i->envVRepS > 0)
+	if (ins->envVRepS > 0)
 	{
-		i->envVRepS--;
+		ins->envVRepS--;
 		drawVolEnvRepS();
 		updateVolEnv = true;
 		setSongModifiedFlag();
@@ -977,15 +942,14 @@ void volEnvRepSDown(void)
 
 void volEnvRepEUp(void)
 {
-	instrTyp *i;
+	instrTyp *ins = instr[editor.curInstr];
 
-	if (editor.curInstr == 0)
+	if (ins == NULL || editor.curInstr == 0)
 		return;
 
-	i = &instr[editor.curInstr];
-	if (i->envVRepE < i->envVPAnt-1)
+	if (ins->envVRepE < ins->envVPAnt-1)
 	{
-		i->envVRepE++;
+		ins->envVRepE++;
 		drawVolEnvRepE();
 		updateVolEnv = true;
 		setSongModifiedFlag();
@@ -994,15 +958,14 @@ void volEnvRepEUp(void)
 
 void volEnvRepEDown(void)
 {
-	instrTyp *i;
+	instrTyp *ins = instr[editor.curInstr];
 
-	if (editor.curInstr == 0)
+	if (ins == NULL || editor.curInstr == 0)
 		return;
 
-	i = &instr[editor.curInstr];
-	if (i->envVRepE > i->envVRepS)
+	if (ins->envVRepE > ins->envVRepS)
 	{
-		i->envVRepE--;
+		ins->envVRepE--;
 		drawVolEnvRepE();
 		updateVolEnv = true;
 		setSongModifiedFlag();
@@ -1012,13 +975,9 @@ void volEnvRepEDown(void)
 void panEnvAdd(void)
 {
 	int16_t i;
-	instrTyp *ins;
+	instrTyp *ins = instr[editor.curInstr];
 
-	if (editor.curInstr == 0)
-		return;
-
-	ins = &instr[editor.curInstr];
-	if (ins->envPPAnt >= 12)
+	if (ins == NULL || editor.curInstr == 0 || ins->envPPAnt >= 12)
 		return;
 
 	i = (int16_t)editor.currPanEnvPoint;
@@ -1066,13 +1025,9 @@ void panEnvDel(void)
 {
 	uint8_t drawSust, drawRepS, drawRepE;
 	int16_t i;
-	instrTyp *ins;
+	instrTyp *ins = instr[editor.curInstr];
 
-	if (editor.curInstr == 0)
-		return;
-
-	ins = &instr[editor.curInstr];
-	if (ins->envPPAnt <= 2)
+	if (ins == NULL || editor.curInstr == 0 || ins->envPPAnt <= 2)
 		return;
 
 	i = (int16_t)editor.currPanEnvPoint;
@@ -1110,15 +1065,14 @@ void panEnvDel(void)
 
 void panEnvSusUp(void)
 {
-	instrTyp *i;
+	instrTyp *ins = instr[editor.curInstr];
 
-	if (editor.curInstr == 0)
-	   return;
+	if (ins == NULL || editor.curInstr == 0)
+		return;
 
-	i = &instr[editor.curInstr];
-	if (i->envPSust < i->envPPAnt-1)
+	if (ins->envPSust < ins->envPPAnt-1)
 	{
-		i->envPSust++;
+		ins->envPSust++;
 		drawPanEnvSus();
 		updatePanEnv = true;
 		setSongModifiedFlag();
@@ -1127,15 +1081,14 @@ void panEnvSusUp(void)
 
 void panEnvSusDown(void)
 {
-	instrTyp *i;
+	instrTyp *ins = instr[editor.curInstr];
 
-	if (editor.curInstr == 0)
+	if (ins == NULL || editor.curInstr == 0)
 		return;
 
-	i = &instr[editor.curInstr];
-	if (i->envPSust > 0)
+	if (ins->envPSust > 0)
 	{
-		i->envPSust--;
+		ins->envPSust--;
 		drawPanEnvSus();
 		updatePanEnv = true;
 		setSongModifiedFlag();
@@ -1144,15 +1097,14 @@ void panEnvSusDown(void)
 
 void panEnvRepSUp(void)
 {
-	instrTyp *i;
+	instrTyp *ins = instr[editor.curInstr];
 
-	if (editor.curInstr == 0)
+	if (ins == NULL || editor.curInstr == 0)
 		return;
 
-	i = &instr[editor.curInstr];
-	if (i->envPRepS < i->envPRepE)
+	if (ins->envPRepS < ins->envPRepE)
 	{
-		i->envPRepS++;
+		ins->envPRepS++;
 		drawPanEnvRepS();
 		updatePanEnv = true;
 		setSongModifiedFlag();
@@ -1161,15 +1113,14 @@ void panEnvRepSUp(void)
 
 void panEnvRepSDown(void)
 {
-	instrTyp *i;
+	instrTyp *ins = instr[editor.curInstr];
 
-	if (editor.curInstr == 0)
+	if (ins == NULL || editor.curInstr == 0)
 		return;
 
-	i = &instr[editor.curInstr];
-	if (i->envPRepS > 0)
+	if (ins->envPRepS > 0)
 	{
-		i->envPRepS--;
+		ins->envPRepS--;
 		drawPanEnvRepS();
 		updatePanEnv = true;
 		setSongModifiedFlag();
@@ -1178,15 +1129,14 @@ void panEnvRepSDown(void)
 
 void panEnvRepEUp(void)
 {
-	instrTyp *i;
+	instrTyp *ins = instr[editor.curInstr];
 
-	if (editor.curInstr == 0)
+	if (ins == NULL || editor.curInstr == 0)
 		return;
 
-	i = &instr[editor.curInstr];
-	if (i->envPRepE < i->envPPAnt-1)
+	if (ins->envPRepE < ins->envPPAnt-1)
 	{
-		i->envPRepE++;
+		ins->envPRepE++;
 		drawPanEnvRepE();
 		updatePanEnv = true;
 		setSongModifiedFlag();
@@ -1195,15 +1145,14 @@ void panEnvRepEUp(void)
 
 void panEnvRepEDown(void)
 {
-	instrTyp *i;
+	instrTyp *ins = instr[editor.curInstr];
 
-	if (editor.curInstr == 0)
+	if (ins == NULL || editor.curInstr == 0)
 		return;
 
-	i = &instr[editor.curInstr];
-	if (i->envPRepE > i->envPRepS)
+	if (ins->envPRepE > ins->envPRepS)
 	{
-		i->envPRepE--;
+		ins->envPRepE--;
 		drawPanEnvRepE();
 		updatePanEnv = true;
 		setSongModifiedFlag();
@@ -1212,254 +1161,90 @@ void panEnvRepEDown(void)
 
 void volDown(void)
 {
-	sampleTyp *s;
-
-	if (editor.curInstr == 0)
-		return;
-
-	s = &instr[editor.curInstr].samp[editor.curSmp];
-	if (s->vol > 0)
-	{
-		s->vol--;
-		drawVolume();
-		setScrollBarPos(SB_INST_VOL, s->vol, false);
-		setSongModifiedFlag();
-	}
+	scrollBarScrollLeft(SB_INST_VOL, 1);
 }
 
 void volUp(void)
 {
-	sampleTyp *s;
-
-	if (editor.curInstr == 0)
-		return;
-
-	s = &instr[editor.curInstr].samp[editor.curSmp];
-	if (s->vol < 0x40)
-	{
-		s->vol++;
-		drawVolume();
-		setScrollBarPos(SB_INST_VOL, s->vol, false);
-		setSongModifiedFlag();
-	}
+	scrollBarScrollRight(SB_INST_VOL, 1);
 }
 
 void panDown(void)
 {
-	sampleTyp *s;
-
-	if (editor.curInstr == 0)
-		return;
-
-	s = &instr[editor.curInstr].samp[editor.curSmp];
-	if (s->pan > 0)
-	{
-		s->pan--;
-		drawPanning();
-		setScrollBarPos(SB_INST_PAN, s->pan, false);
-		setSongModifiedFlag();
-	}
+	scrollBarScrollLeft(SB_INST_PAN, 1);
 }
 
 void panUp(void)
 {
-	sampleTyp *s;
-
-	if (editor.curInstr == 0)
-		return;
-
-	s = &instr[editor.curInstr].samp[editor.curSmp];
-	if (s->pan < 0xFF)
-	{
-		s->pan++;
-		drawPanning();
-		setScrollBarPos(SB_INST_PAN, s->pan, false);
-		setSongModifiedFlag();
-	}
+	scrollBarScrollRight(SB_INST_PAN, 1);
 }
 
 void ftuneDown(void)
 {
-	sampleTyp *s;
-
-	if (editor.curInstr == 0)
-		return;
-
-	s = &instr[editor.curInstr].samp[editor.curSmp];
-	if (s->fine > -128)
-	{
-		s->fine--;
-		drawFineTune();
-		setScrollBarPos(SB_INST_FTUNE, 128 + s->fine, false);
-		setSongModifiedFlag();
-	}
+	scrollBarScrollLeft(SB_INST_FTUNE, 1);
 }
 
 void ftuneUp(void)
 {
-	sampleTyp *s;
-
-	if (editor.curInstr == 0)
-		return;
-
-	s = &instr[editor.curInstr].samp[editor.curSmp];
-	if (s->fine < 127)
-	{
-		s->fine++;
-		drawFineTune();
-		setScrollBarPos(SB_INST_FTUNE, 128 + s->fine, false);
-		setSongModifiedFlag();
-	}
+	scrollBarScrollRight(SB_INST_FTUNE, 1);
 }
 
 void fadeoutDown(void)
 {
-	instrTyp *i;
-
-	if (editor.curInstr == 0)
-		return;
-
-	i = &instr[editor.curInstr];
-	if (i->fadeOut > 0)
-	{
-		i->fadeOut--;
-		drawFadeout();
-		setScrollBarPos(SB_INST_FADEOUT, i->fadeOut, false);
-		setSongModifiedFlag();
-	}
+	scrollBarScrollLeft(SB_INST_FADEOUT, 1);
 }
 
 void fadeoutUp(void)
 {
-	instrTyp *i;
-
-	if (editor.curInstr == 0)
-		return;
-
-	i = &instr[editor.curInstr];
-	if (i->fadeOut < 0xFFF)
-	{
-		i->fadeOut++;
-		drawFadeout();
-		setScrollBarPos(SB_INST_FADEOUT, i->fadeOut, false);
-		setSongModifiedFlag();
-	}
+	scrollBarScrollRight(SB_INST_FADEOUT, 1);
 }
 
 void vibSpeedDown(void)
 {
-	instrTyp *i;
-
-	if (editor.curInstr == 0)
-		return;
-
-	i = &instr[editor.curInstr];
-	if (i->vibRate > 0)
-	{
-		i->vibRate--;
-		drawVibSpeed();
-		setScrollBarPos(SB_INST_VIBSPEED, i->vibRate, false);
-		setSongModifiedFlag();
-	}
+	scrollBarScrollLeft(SB_INST_VIBSPEED, 1);
 }
 
 void vibSpeedUp(void)
 {
-	instrTyp *i;
-
-	if (editor.curInstr == 0)
-		return;
-
-	i = &instr[editor.curInstr];
-	if (i->vibRate < 0x3F)
-	{
-		i->vibRate++;
-		drawVibSpeed();
-		setScrollBarPos(SB_INST_VIBSPEED, i->vibRate, false);
-		setSongModifiedFlag();
-	}
+	scrollBarScrollRight(SB_INST_VIBSPEED, 1);
 }
 
 void vibDepthDown(void)
 {
-	instrTyp *i;
-
-	if (editor.curInstr == 0)
-		return;
-
-	i = &instr[editor.curInstr];
-	if (i->vibDepth > 0)
-	{
-		i->vibDepth--;
-		drawVibDepth();
-		setScrollBarPos(SB_INST_VIBDEPTH, i->vibDepth, false);
-		setSongModifiedFlag();
-	}
+	scrollBarScrollLeft(SB_INST_VIBDEPTH, 1);
 }
 
 void vibDepthUp(void)
 {
-	instrTyp *i;
-
-	if (editor.curInstr == 0)
-		return;
-
-	i = &instr[editor.curInstr];
-	if (i->vibDepth < 0xF)
-	{
-		i->vibDepth++;
-		drawVibDepth();
-		setScrollBarPos(SB_INST_VIBDEPTH, i->vibDepth, false);
-		setSongModifiedFlag();
-	}
+	scrollBarScrollRight(SB_INST_VIBDEPTH, 1);
 }
 
 void vibSweepDown(void)
 {
-	instrTyp *i;
-
-	if (editor.curInstr == 0)
-		return;
-
-	i = &instr[editor.curInstr];
-	if (i->vibSweep > 0)
-	{
-		i->vibSweep--;
-		drawVibSweep();
-		setScrollBarPos(SB_INST_VIBSWEEP, i->vibSweep, false);
-		setSongModifiedFlag();
-	}
+	scrollBarScrollLeft(SB_INST_VIBSWEEP, 1);
 }
 
 void vibSweepUp(void)
 {
-	instrTyp *i;
-
-	if (editor.curInstr == 0)
-		return;
-
-	i = &instr[editor.curInstr];
-	if (i->vibSweep < 0xFF)
-	{
-		i->vibSweep++;
-		drawVibSweep();
-		setScrollBarPos(SB_INST_VIBSWEEP, i->vibSweep, false);
-		setSongModifiedFlag();
-	}
+	scrollBarScrollRight(SB_INST_VIBSWEEP, 1);
 }
 
 void setVolumeScroll(uint32_t pos)
 {
 	sampleTyp *s;
 
-	if (editor.curInstr == 0)
+	if (instr[editor.curInstr] == NULL || editor.curInstr == 0)
 	{
-		setScrollBarPos(SB_INST_VOL, 64, false);
+		if (editor.curInstr == 0 && editor.curSmp != 0)
+			setScrollBarPos(SB_INST_VOL, 0x40, false);
+		else
+			setScrollBarPos(SB_INST_VOL, 0, false);
+
 		return;
 	}
 
-	s = &instr[editor.curInstr].samp[editor.curSmp];
-	if ((uint8_t)pos != s->vol)
+	s = &instr[editor.curInstr]->samp[editor.curSmp];
+	if (s->vol != (uint8_t)pos)
 	{
 		s->vol = (uint8_t)pos;
 		drawVolume();
@@ -1471,14 +1256,14 @@ void setPanningScroll(uint32_t pos)
 {
 	sampleTyp *s;
 
-	if (editor.curInstr == 0)
+	if (instr[editor.curInstr] == NULL || editor.curInstr == 0)
 	{
 		setScrollBarPos(SB_INST_PAN, 0x80, false);
 		return;
 	}
 
-	s = &instr[editor.curInstr].samp[editor.curSmp];
-	if ((uint8_t)pos != s->pan)
+	s = &instr[editor.curInstr]->samp[editor.curSmp];
+	if (s->pan != (uint8_t)pos)
 	{
 		s->pan = (uint8_t)pos;
 		drawPanning();
@@ -1490,14 +1275,14 @@ void setFinetuneScroll(uint32_t pos)
 {
 	sampleTyp *s;
 
-	if (editor.curInstr == 0)
+	if (instr[editor.curInstr] == NULL || editor.curInstr == 0)
 	{
 		setScrollBarPos(SB_INST_FTUNE, 128, false); // finetune 0
 		return;
 	}
 
-	s = &instr[editor.curInstr].samp[editor.curSmp];
-	if ((int8_t)(pos - 128) != s->fine)
+	s = &instr[editor.curInstr]->samp[editor.curSmp];
+	if (s->fine != (int8_t)(pos - 128))
 	{
 		s->fine = (int8_t)(pos - 128);
 		drawFineTune();
@@ -1507,7 +1292,13 @@ void setFinetuneScroll(uint32_t pos)
 
 void setFadeoutScroll(uint32_t pos)
 {
-	instrTyp *i;
+	instrTyp *ins = instr[editor.curInstr];
+
+	if (ins == NULL)
+	{
+		setScrollBarPos(SB_INST_FADEOUT, 0, false);
+		return;
+	}
 
 	if (editor.curInstr == 0)
 	{
@@ -1515,10 +1306,9 @@ void setFadeoutScroll(uint32_t pos)
 		return;
 	}
 
-	i = &instr[editor.curInstr];
-	if ((uint16_t)pos != i->fadeOut)
+	if (ins->fadeOut != (uint16_t)pos)
 	{
-		i->fadeOut = (uint16_t)pos;
+		ins->fadeOut = (uint16_t)pos;
 		drawFadeout();
 		setSongModifiedFlag();
 	}
@@ -1526,18 +1316,17 @@ void setFadeoutScroll(uint32_t pos)
 
 void setVibSpeedScroll(uint32_t pos)
 {
-	instrTyp *i;
+	instrTyp *ins = instr[editor.curInstr];
 
-	if (editor.curInstr == 0)
+	if (ins == NULL || editor.curInstr == 0)
 	{
 		setScrollBarPos(SB_INST_VIBSPEED, 0, false);
 		return;
 	}
 
-	i = &instr[editor.curInstr];
-	if ((uint8_t)pos != i->vibRate)
+	if (ins->vibRate != (uint8_t)pos)
 	{
-		i->vibRate = (uint8_t)pos;
+		ins->vibRate = (uint8_t)pos;
 		drawVibSpeed();
 		setSongModifiedFlag();
 	}
@@ -1545,18 +1334,17 @@ void setVibSpeedScroll(uint32_t pos)
 
 void setVibDepthScroll(uint32_t pos)
 {
-	instrTyp *i;
+	instrTyp *ins = instr[editor.curInstr];
 
-	if (editor.curInstr == 0)
+	if (ins == NULL || editor.curInstr == 0)
 	{
 		setScrollBarPos(SB_INST_VIBDEPTH, 0, false);
 		return;
 	}
 
-	i = &instr[editor.curInstr];
-	if ((uint8_t)pos != i->vibDepth)
+	if (ins->vibDepth != (uint8_t)pos)
 	{
-		i->vibDepth = (uint8_t)pos;
+		ins->vibDepth = (uint8_t)pos;
 		drawVibDepth();
 		setSongModifiedFlag();
 	}
@@ -1564,18 +1352,17 @@ void setVibDepthScroll(uint32_t pos)
 
 void setVibSweepScroll(uint32_t pos)
 {
-	instrTyp *i;
+	instrTyp *ins = instr[editor.curInstr];
 
-	if (editor.curInstr == 0)
+	if (ins == NULL || editor.curInstr == 0)
 	{
 		setScrollBarPos(SB_INST_VIBSWEEP, 0, false);
 		return;
 	}
 
-	i = &instr[editor.curInstr];
-	if ((uint8_t)pos != i->vibSweep)
+	if (ins->vibSweep != (uint8_t)pos)
 	{
-		i->vibSweep = (uint8_t)pos;
+		ins->vibSweep = (uint8_t)pos;
 		drawVibSweep();
 		setSongModifiedFlag();
 	}
@@ -1583,10 +1370,10 @@ void setVibSweepScroll(uint32_t pos)
 
 void rbVibWaveSine(void)
 {
-	if (editor.curInstr == 0)
+	if (instr[editor.curInstr] == NULL || editor.curInstr == 0)
 		return;
 
-	instr[editor.curInstr].vibTyp = 0;
+	instr[editor.curInstr]->vibTyp = 0;
 
 	uncheckRadioButtonGroup(RB_GROUP_INST_WAVEFORM);
 	radioButtons[RB_INST_WAVE_SINE].state = RADIOBUTTON_CHECKED;
@@ -1596,10 +1383,10 @@ void rbVibWaveSine(void)
 
 void rbVibWaveSquare(void)
 {
-	if (editor.curInstr == 0)
+	if (instr[editor.curInstr] == NULL || editor.curInstr == 0)
 		return;
 
-	instr[editor.curInstr].vibTyp = 1;
+	instr[editor.curInstr]->vibTyp = 1;
 
 	uncheckRadioButtonGroup(RB_GROUP_INST_WAVEFORM);
 	radioButtons[RB_INST_WAVE_SQUARE].state = RADIOBUTTON_CHECKED;
@@ -1609,10 +1396,10 @@ void rbVibWaveSquare(void)
 
 void rbVibWaveRampDown(void)
 {
-	if (editor.curInstr == 0)
+	if (instr[editor.curInstr] == NULL || editor.curInstr == 0)
 		return;
 
-	instr[editor.curInstr].vibTyp = 2;
+	instr[editor.curInstr]->vibTyp = 2;
 
 	uncheckRadioButtonGroup(RB_GROUP_INST_WAVEFORM);
 	radioButtons[RB_INST_WAVE_RAMP_DOWN].state = RADIOBUTTON_CHECKED;
@@ -1622,10 +1409,10 @@ void rbVibWaveRampDown(void)
 
 void rbVibWaveRampUp(void)
 {
-	if (editor.curInstr == 0)
+	if (instr[editor.curInstr] == NULL || editor.curInstr == 0)
 		return;
 
-	instr[editor.curInstr].vibTyp = 3;
+	instr[editor.curInstr]->vibTyp = 3;
 
 	uncheckRadioButtonGroup(RB_GROUP_INST_WAVEFORM);
 	radioButtons[RB_INST_WAVE_RAMP_UP].state = RADIOBUTTON_CHECKED;
@@ -1635,14 +1422,14 @@ void rbVibWaveRampUp(void)
 
 void cbVEnv(void)
 {
-	if (editor.curInstr == 0)
+	if (instr[editor.curInstr] == NULL || editor.curInstr == 0)
 	{
 		checkBoxes[CB_INST_VENV].checked = false;
 		drawCheckBox(CB_INST_VENV);
 		return;
 	}
 
-	instr[editor.curInstr].envVTyp ^= 1;
+	instr[editor.curInstr]->envVTyp ^= 1;
 	updateVolEnv = true;
 
 	setSongModifiedFlag();
@@ -1650,14 +1437,14 @@ void cbVEnv(void)
 
 void cbVEnvSus(void)
 {
-	if (editor.curInstr == 0)
+	if (instr[editor.curInstr] == NULL || editor.curInstr == 0)
 	{
 		checkBoxes[CB_INST_VENV_SUS].checked = false;
 		drawCheckBox(CB_INST_VENV_SUS);
 		return;
 	}
 
-	instr[editor.curInstr].envVTyp ^= 2;
+	instr[editor.curInstr]->envVTyp ^= 2;
 	updateVolEnv = true;
 
 	setSongModifiedFlag();
@@ -1665,14 +1452,14 @@ void cbVEnvSus(void)
 
 void cbVEnvLoop(void)
 {
-	if (editor.curInstr == 0)
+	if (instr[editor.curInstr] == NULL || editor.curInstr == 0)
 	{
 		checkBoxes[CB_INST_VENV_LOOP].checked = false;
 		drawCheckBox(CB_INST_VENV_LOOP);
 		return;
 	}
 
-	instr[editor.curInstr].envVTyp ^= 4;
+	instr[editor.curInstr]->envVTyp ^= 4;
 	updateVolEnv = true;
 
 	setSongModifiedFlag();
@@ -1680,14 +1467,14 @@ void cbVEnvLoop(void)
 
 void cbPEnv(void)
 {
-	if (editor.curInstr == 0)
+	if (instr[editor.curInstr] == NULL || editor.curInstr == 0)
 	{
 		checkBoxes[CB_INST_PENV].checked = false;
 		drawCheckBox(CB_INST_PENV);
 		return;
 	}
 
-	instr[editor.curInstr].envPTyp ^= 1;
+	instr[editor.curInstr]->envPTyp ^= 1;
 	updatePanEnv = true;
 
 	setSongModifiedFlag();
@@ -1695,14 +1482,14 @@ void cbPEnv(void)
 
 void cbPEnvSus(void)
 {
-	if (editor.curInstr == 0)
+	if (instr[editor.curInstr] == NULL || editor.curInstr == 0)
 	{
 		checkBoxes[CB_INST_PENV_SUS].checked = false;
 		drawCheckBox(CB_INST_PENV_SUS);
 		return;
 	}
 
-	instr[editor.curInstr].envPTyp ^= 2;
+	instr[editor.curInstr]->envPTyp ^= 2;
 	updatePanEnv = true;
 
 	setSongModifiedFlag();
@@ -1710,14 +1497,14 @@ void cbPEnvSus(void)
 
 void cbPEnvLoop(void)
 {
-	if (editor.curInstr == 0)
+	if (instr[editor.curInstr] == NULL || editor.curInstr == 0)
 	{
 		checkBoxes[CB_INST_PENV_LOOP].checked = false;
 		drawCheckBox(CB_INST_PENV_LOOP);
 		return;
 	}
 
-	instr[editor.curInstr].envPTyp ^= 4;
+	instr[editor.curInstr]->envPTyp ^= 4;
 	updatePanEnv = true;
 
 	setSongModifiedFlag();
@@ -1751,8 +1538,8 @@ static void writePianoNumber(uint8_t note, uint8_t key, uint8_t octave)
 	uint16_t x;
 
 	number = 0;
-	if (editor.curInstr > 0)
-		number = instr[editor.curInstr].ta[note];
+	if (instr[editor.curInstr] != NULL && editor.curInstr > 0)
+		number = instr[editor.curInstr]->ta[note];
 
 	x = keyDigitXPos[key] + (octave * 77);
 
@@ -1818,7 +1605,9 @@ bool testPianoKeysMouseDown(bool mouseButtonDown)
 		mx = CLAMP(mx, 8, 623);
 	}
 
-	ins = &instr[editor.curInstr];
+	ins = instr[editor.curInstr];
+	if (ins == NULL)
+		return true;
 
 	mx -= 8;
 	if (my < 378)
@@ -2169,7 +1958,7 @@ static void writeEnvelope(int32_t nr)
 {
 	uint8_t selected;
 	int16_t i, x, y, lx, ly, nd, sp, ls, le, (*curEnvP)[2];
-	instrTyp *ins = &instr[editor.curInstr];
+	instrTyp *ins = instr[editor.curInstr];
 
 	// clear envelope area
 	if (nr == 0)
@@ -2178,14 +1967,17 @@ static void writeEnvelope(int32_t nr)
 		clearRect(5, 276, 331, 67);
 
 	// draw dotted x/y lines
-	for (i = 0; i <= 32;  i++) envelopePixel(nr, 5,          1 + i * 2, PAL_PATTEXT);
-	for (i = 0; i <= 8;   i++) envelopePixel(nr, 4,          1 + i * 8, PAL_PATTEXT);
-	for (i = 0; i <= 162; i++) envelopePixel(nr, 8 + i *  2, 65,        PAL_PATTEXT);
-	for (i = 0; i <= 6;   i++) envelopePixel(nr, 8 + i * 50, 66,        PAL_PATTEXT);
+	for (i = 0; i <= 32; i++) envelopePixel(nr, 5, 1 + i * 2, PAL_PATTEXT);
+	for (i = 0; i <= 8; i++) envelopePixel(nr, 4, 1 + i * 8, PAL_PATTEXT);
+	for (i = 0; i <= 162; i++) envelopePixel(nr, 8 + i *  2, 65, PAL_PATTEXT);
+	for (i = 0; i <= 6; i++) envelopePixel(nr, 8 + i * 50, 66, PAL_PATTEXT);
 
 	// draw center line on pan envelope
 	if (nr == 1)
 		envelopeLine(nr, 8, 33, 335, 33, PAL_BLCKMRK);
+
+	if (ins == NULL)
+		return;
 
 	// collect variables
 	if (nr == 0)
@@ -2379,8 +2171,13 @@ void exitInstEditor(void)
 void updateInstEditor(void)
 {
 	uint16_t tmpID;
-	instrTyp *ins = &instr[editor.curInstr];
-	sampleTyp *smp = &ins->samp[editor.curSmp];
+	sampleTyp *s;
+	instrTyp *ins = getCurDispInstr();
+
+	if (instr[editor.curInstr] == NULL)
+		s = &ins->samp[0];
+	else
+		s = &ins->samp[editor.curSmp];
 
 	// update instrument editor extension
 	if (editor.ui.instEditorExtShown)
@@ -2388,12 +2185,12 @@ void updateInstEditor(void)
 		checkBoxes[CB_INST_EXT_MIDI].checked = ins->midiOn ? true : false;
 		checkBoxes[CB_INST_EXT_MUTE].checked = ins->mute ? true : false;
 
-		drawCheckBox(CB_INST_EXT_MIDI);
-		drawCheckBox(CB_INST_EXT_MUTE);
-
 		setScrollBarPos(SB_INST_EXT_MIDI_CH, ins->midiChannel, false);
 		setScrollBarPos(SB_INST_EXT_MIDI_PRG, ins->midiProgram, false);
 		setScrollBarPos(SB_INST_EXT_MIDI_BEND, ins->midiBend, false);
+
+		drawCheckBox(CB_INST_EXT_MIDI);
+		drawCheckBox(CB_INST_EXT_MUTE);
 
 		drawMIDICh();
 		drawMIDIPrg();
@@ -2419,13 +2216,13 @@ void updateInstEditor(void)
 	drawRelTone();
 
 	// set scroll bars
-	setScrollBarPos(SB_INST_VOL, smp->vol, true);
-	setScrollBarPos(SB_INST_PAN, smp->pan, true);
-	setScrollBarPos(SB_INST_FTUNE, 128 + smp->fine, true);
-	setScrollBarPos(SB_INST_FADEOUT, ins->fadeOut, true);
-	setScrollBarPos(SB_INST_VIBSPEED, ins->vibRate, true);
-	setScrollBarPos(SB_INST_VIBDEPTH, ins->vibDepth, true);
-	setScrollBarPos(SB_INST_VIBSWEEP, ins->vibSweep, true);
+	setScrollBarPos(SB_INST_VOL, s->vol, false);
+	setScrollBarPos(SB_INST_PAN, s->pan, false);
+	setScrollBarPos(SB_INST_FTUNE, 128 + s->fine, false);
+	setScrollBarPos(SB_INST_FADEOUT, ins->fadeOut, false);
+	setScrollBarPos(SB_INST_VIBSPEED, ins->vibRate, false);
+	setScrollBarPos(SB_INST_VIBDEPTH, ins->vibDepth, false);
+	setScrollBarPos(SB_INST_VIBSWEEP, ins->vibSweep, false);
 
 	// set radio buttons
 
@@ -2441,8 +2238,6 @@ void updateInstEditor(void)
 
 	radioButtons[tmpID].state = RADIOBUTTON_CHECKED;
 
-	showRadioButtonGroup(RB_GROUP_INST_WAVEFORM);
-
 	// set check boxes
 
 	checkBoxes[CB_INST_VENV].checked = (ins->envVTyp & 1) ? true : false;
@@ -2452,15 +2247,17 @@ void updateInstEditor(void)
 	checkBoxes[CB_INST_PENV_SUS].checked = (ins->envPTyp & 2) ? true : false;
 	checkBoxes[CB_INST_PENV_LOOP].checked = (ins->envPTyp & 4) ? true : false;
 
+	if (editor.currVolEnvPoint >= ins->envVPAnt) editor.currVolEnvPoint = 0;
+	if (editor.currPanEnvPoint >= ins->envPPAnt) editor.currPanEnvPoint = 0;
+
+	showRadioButtonGroup(RB_GROUP_INST_WAVEFORM);
+
 	drawCheckBox(CB_INST_VENV);
 	drawCheckBox(CB_INST_VENV_SUS);
 	drawCheckBox(CB_INST_VENV_LOOP);
 	drawCheckBox(CB_INST_PENV);
 	drawCheckBox(CB_INST_PENV_SUS);
 	drawCheckBox(CB_INST_PENV_LOOP);
-
-	if (editor.currVolEnvPoint >= ins->envVPAnt) editor.currVolEnvPoint = 0;
-	if (editor.currPanEnvPoint >= ins->envPPAnt) editor.currPanEnvPoint = 0;
 
 	updateVolEnv = true;
 	updatePanEnv = true;
@@ -2572,7 +2369,7 @@ void showInstEditor(void)
 	showCheckBox(CB_INST_VENV_LOOP);
 	showCheckBox(CB_INST_PENV);
 	showCheckBox(CB_INST_PENV_SUS);
-	showCheckBox( CB_INST_PENV_LOOP);
+	showCheckBox(CB_INST_PENV_LOOP);
 
 	// draw auto-vibrato waveforms
 	blitFast(455, 279, &vibWaveformBitmap[(12*10)*0], 12, 10);
@@ -2608,13 +2405,10 @@ bool testInstrVolEnvMouseDown(bool mouseButtonDown)
 	int32_t x, y, mx, my, minX, maxX;
 	instrTyp *ins;
 
-	if (!editor.ui.instEditorShown)
+	if (!editor.ui.instEditorShown || editor.curInstr == 0 || instr[editor.curInstr] == NULL)
 		return false;
 
-	if (editor.curInstr == 0)
-		return true; // widget pressed, but don't do anything
-
-	ins = &instr[editor.curInstr];
+	ins = instr[editor.curInstr];
 
 	ant = ins->envVPAnt;
 	if (ant > 12)
@@ -2707,13 +2501,10 @@ bool testInstrPanEnvMouseDown(bool mouseButtonDown)
 	int32_t x, y, mx, my, minX, maxX;
 	instrTyp *ins;
 
-	if (!editor.ui.instEditorShown)
+	if (!editor.ui.instEditorShown || editor.curInstr == 0 || instr[editor.curInstr] == NULL)
 		return false;
 
-	if (editor.curInstr == 0)
-		return true; // widget pressed, but don't do anything
-
-	ins = &instr[editor.curInstr];
+	ins = instr[editor.curInstr];
 
 	ant = ins->envPPAnt;
 	if (ant > 12)
@@ -2802,39 +2593,33 @@ bool testInstrPanEnvMouseDown(bool mouseButtonDown)
 
 void cbInstMidiEnable(void)
 {
-	instrTyp *ins;
-
-	if (editor.curInstr == 0)
+	if (editor.curInstr == 0 || instr[editor.curInstr] == NULL)
 	{
 		checkBoxes[CB_INST_EXT_MIDI].checked = false;
 		drawCheckBox(CB_INST_EXT_MIDI);
 		return;
 	}
 
-	ins = &instr[editor.curInstr];
-	ins->midiOn ^= 1;
+	instr[editor.curInstr]->midiOn ^= 1;
 	setSongModifiedFlag();
 }
 
 void cbInstMuteComputer(void)
 {
-	instrTyp *ins;
-
-	if (editor.curInstr == 0)
+	if (editor.curInstr == 0 || instr[editor.curInstr] == NULL)
 	{
 		checkBoxes[CB_INST_EXT_MUTE].checked = false;
 		drawCheckBox(CB_INST_EXT_MUTE);
 		return;
 	}
 
-	ins = &instr[editor.curInstr];
-	ins->mute ^= 1;
+	instr[editor.curInstr]->mute ^= 1;
 	setSongModifiedFlag();
 }
 
 void drawInstEditorExt(void)
 {
-	instrTyp *ins = &instr[editor.curInstr];
+	instrTyp *ins = instr[editor.curInstr];
 
 	drawFramework(0,  92, 291, 17, FRAMEWORK_TYPE1);
 	drawFramework(0, 109, 291, 19, FRAMEWORK_TYPE1);
@@ -2847,14 +2632,26 @@ void drawInstEditorExt(void)
 	textOutShadow(4,   147, PAL_FORGRND, PAL_DSKTOP2, "MIDI program");
 	textOutShadow(4,   160, PAL_FORGRND, PAL_DSKTOP2, "Bender range (halftones)");
 
-	checkBoxes[CB_INST_EXT_MIDI].checked = ins->midiOn ? true : false;
-	checkBoxes[CB_INST_EXT_MUTE].checked = ins->mute ? true : false;
+	if (ins == NULL)
+	{
+		checkBoxes[CB_INST_EXT_MIDI].checked = false;
+		checkBoxes[CB_INST_EXT_MUTE].checked = false;
+		setScrollBarPos(SB_INST_EXT_MIDI_CH, 0, false);
+		setScrollBarPos(SB_INST_EXT_MIDI_PRG, 0, false);
+		setScrollBarPos(SB_INST_EXT_MIDI_BEND, 0, false);
+	}
+	else
+	{
+		checkBoxes[CB_INST_EXT_MIDI].checked = ins->midiOn ? true : false;
+		checkBoxes[CB_INST_EXT_MUTE].checked = ins->mute ? true : false;
+		setScrollBarPos(SB_INST_EXT_MIDI_CH, ins->midiChannel, false);
+		setScrollBarPos(SB_INST_EXT_MIDI_PRG, ins->midiProgram, false);
+		setScrollBarPos(SB_INST_EXT_MIDI_BEND, ins->midiBend, false);
+	}
+
 	showCheckBox(CB_INST_EXT_MIDI);
 	showCheckBox(CB_INST_EXT_MUTE);
 
-	setScrollBarPos(SB_INST_EXT_MIDI_CH, ins->midiChannel, false);
-	setScrollBarPos(SB_INST_EXT_MIDI_PRG, ins->midiProgram, false);
-	setScrollBarPos(SB_INST_EXT_MIDI_BEND, ins->midiBend, false);
 	showScrollBar(SB_INST_EXT_MIDI_CH);
 	showScrollBar(SB_INST_EXT_MIDI_PRG);
 	showScrollBar(SB_INST_EXT_MIDI_BEND);
@@ -2923,6 +2720,11 @@ static bool testInstrSwitcherNormal(void) // Welcome to the Jungle
 		// instruments
 		if (mouse.x >= 446 && mouse.x <= 584)
 		{
+			mouse.lastUsedObjectType = OBJECT_INSTRSWITCH;
+
+			if ((mouse.y-5) % 11 == 10)
+				return true; // we clicked on the one-pixel spacer
+
 			// destination instrument
 			newEntry = (editor.instrBankOffset + 1) + (uint8_t)((mouse.y - 5) / 11);
 			if (editor.curInstr != newEntry)
@@ -2932,11 +2734,15 @@ static bool testInstrSwitcherNormal(void) // Welcome to the Jungle
 				updateNewInstrument();
 			}
 
-			mouse.lastUsedObjectType = OBJECT_INSTRSWITCH;
 			return true;
 		}
 		else if (mouse.x >= 424 && mouse.x <= 438)
 		{
+			mouse.lastUsedObjectType = OBJECT_INSTRSWITCH;
+
+			if ((mouse.y-5) % 11 == 10)
+				return true; // we clicked on the one-pixel spacer
+
 			// source isntrument
 			newEntry = (editor.instrBankOffset + 1) + (uint8_t)((mouse.y - 5) / 11);
 			if (editor.srcInstr != newEntry)
@@ -2948,7 +2754,6 @@ static bool testInstrSwitcherNormal(void) // Welcome to the Jungle
 					updateAdvEdit();
 			}
 
-			mouse.lastUsedObjectType = OBJECT_INSTRSWITCH;
 			return true;
 		}
 	}
@@ -2957,6 +2762,11 @@ static bool testInstrSwitcherNormal(void) // Welcome to the Jungle
 		// samples
 		if (mouse.x >= 446 && mouse.x <= 560)
 		{
+			mouse.lastUsedObjectType = OBJECT_INSTRSWITCH;
+
+			if ((mouse.y-99) % 11 == 10)
+				return true; // we clicked on the one-pixel spacer
+
 			// destionation sample
 			newEntry = editor.sampleBankOffset + (uint8_t)((mouse.y - 99) / 11);
 			if (editor.curSmp != newEntry)
@@ -2969,11 +2779,15 @@ static bool testInstrSwitcherNormal(void) // Welcome to the Jungle
 				else if (editor.ui.instEditorShown)   updateInstEditor();
 			}
 
-			mouse.lastUsedObjectType = OBJECT_INSTRSWITCH;
 			return true;
 		}
 		else if (mouse.x >= 423 && mouse.x <= 438)
 		{
+			mouse.lastUsedObjectType = OBJECT_INSTRSWITCH;
+
+			if ((mouse.y-99) % 11 == 10)
+				return true; // we clicked on the one-pixel spacer
+
 			// source sample
 			newEntry = editor.sampleBankOffset + (uint8_t)((mouse.y - 99) / 11);
 			if (editor.srcSmp != newEntry)
@@ -2982,7 +2796,6 @@ static bool testInstrSwitcherNormal(void) // Welcome to the Jungle
 				updateInstrumentSwitcher();
 			}
 
-			mouse.lastUsedObjectType = OBJECT_INSTRSWITCH;
 			return true;
 		}
 	}
@@ -3002,6 +2815,11 @@ static bool testInstrSwitcherExtended(void) // Welcome to the Jungle 2 - The Hap
 		// right columns
 		if (mouse.x <= 525)
 		{
+			mouse.lastUsedObjectType = OBJECT_INSTRSWITCH;
+
+			if ((mouse.y-5) % 11 == 10)
+				return true; // we clicked on the one-pixel spacer
+
 			// source instrument
 			newEntry = (editor.instrBankOffset + 5) + (uint8_t)((mouse.y - 5) / 11);
 			if (editor.srcInstr != newEntry)
@@ -3013,11 +2831,15 @@ static bool testInstrSwitcherExtended(void) // Welcome to the Jungle 2 - The Hap
 					updateAdvEdit();
 			}
 
-			mouse.lastUsedObjectType = OBJECT_INSTRSWITCH;
 			return true;
 		}
 		else if (mouse.x >= 529 && mouse.x <= 626)
 		{
+			mouse.lastUsedObjectType = OBJECT_INSTRSWITCH;
+
+			if ((mouse.y-5) % 11 == 10)
+				return true; // we clicked on the one-pixel spacer
+
 			// destination instrument
 			newEntry = (editor.instrBankOffset + 5) + (uint8_t)((mouse.y - 5) / 11);
 			if (editor.curInstr != newEntry)
@@ -3027,7 +2849,6 @@ static bool testInstrSwitcherExtended(void) // Welcome to the Jungle 2 - The Hap
 				updateNewInstrument();
 			}
 
-			mouse.lastUsedObjectType = OBJECT_INSTRSWITCH;
 			return true;
 		}
 	}
@@ -3036,6 +2857,11 @@ static bool testInstrSwitcherExtended(void) // Welcome to the Jungle 2 - The Hap
 		// left columns
 		if (mouse.x <= 402)
 		{
+			mouse.lastUsedObjectType = OBJECT_INSTRSWITCH;
+
+			if ((mouse.y-5) % 11 == 10)
+				return true; // we clicked on the one-pixel spacer
+
 			// source instrument
 			newEntry = (editor.instrBankOffset + 1) + (uint8_t)((mouse.y - 5) / 11);
 			if (editor.srcInstr != newEntry)
@@ -3047,11 +2873,15 @@ static bool testInstrSwitcherExtended(void) // Welcome to the Jungle 2 - The Hap
 					updateAdvEdit();
 			}
 
-			mouse.lastUsedObjectType = OBJECT_INSTRSWITCH;
 			return true;
 		}
 		else if (mouse.x >= 406 && mouse.x <= 503)
 		{
+			mouse.lastUsedObjectType = OBJECT_INSTRSWITCH;
+
+			if ((mouse.y-5) % 11 == 10)
+				return true; // we clicked on the one-pixel spacer
+
 			// destination instrument
 			newEntry = (editor.instrBankOffset + 1) + (uint8_t)((mouse.y - 5) / 11);
 			if (editor.curInstr != newEntry)
@@ -3061,7 +2891,6 @@ static bool testInstrSwitcherExtended(void) // Welcome to the Jungle 2 - The Hap
 				updateNewInstrument();
 			}
 
-			mouse.lastUsedObjectType = OBJECT_INSTRSWITCH;
 			return true;
 		}
 	}
@@ -3070,8 +2899,8 @@ static bool testInstrSwitcherExtended(void) // Welcome to the Jungle 2 - The Hap
 }
 
 bool testInstrSwitcherMouseDown(void)
-{ 
-	if (!mouse.leftButtonPressed || !editor.ui.instrSwitcherShown)
+{
+	if (!editor.ui.instrSwitcherShown)
 		return false;
 
 	if (editor.ui.extended)
@@ -3100,7 +2929,7 @@ static int32_t SDLCALL saveInstrThread(void *ptr)
 	n = getUsedSamples(saveInstrNr);
 	if (n == 0)
 	{
-		okBoxThreadSafe(0, "System message", "Instrument has no samples!");
+		okBoxThreadSafe(0, "System message", "Instrument is empty!");
 		return false;
 	}
 
@@ -3124,10 +2953,10 @@ static int32_t SDLCALL saveInstrThread(void *ptr)
 
 	for (int16_t i = 0; i < n; i++)
 	{
-		srcSmp = &instr[saveInstrNr].samp[i];
+		srcSmp = &instr[saveInstrNr]->samp[i];
 		dstSmpHdr = &ih.samp[i];
 
-		memcpy(&dstSmpHdr->len, &srcSmp->len, (12 + 4 + 2) + strlen(srcSmp->name));
+		memcpy(&dstSmpHdr->len, &srcSmp->len, 12+4+2 + strlen(srcSmp->name));
 		if (srcSmp->pek == NULL)
 			dstSmpHdr->len = 0;
 	}
@@ -3143,7 +2972,7 @@ static int32_t SDLCALL saveInstrThread(void *ptr)
 	pauseAudio();
 	for (int16_t i = 0; i < n; i++)
 	{
-		srcSmp = &instr[saveInstrNr].samp[i];
+		srcSmp = &instr[saveInstrNr]->samp[i];
 		if (srcSmp->pek != NULL)
 		{
 			restoreSample(srcSmp);
@@ -3247,7 +3076,7 @@ static int32_t SDLCALL loadInstrThread(void *ptr)
 		{
 			fseek(f, -2 - 15 - 1 - 2, SEEK_CUR);
 			ih.antSamp = ih.midiProgram;
-			memset(&ih.midiProgram, 0, 2 + 15 + 1 + 2);
+			memset(&ih.midiProgram, 0, 2+15+1+2);
 		}
 
 		if (ih.antSamp > 16)
@@ -3256,38 +3085,37 @@ static int32_t SDLCALL loadInstrThread(void *ptr)
 			goto loadDone;
 		}
 
-		pauseAudio();
-		clearInstr(editor.curInstr);
-
-		// trim off spaces at end of name
-		for (int16_t i = 21; i >= 0; i--)
-		{
-			if (ih.name[i] == ' ' || ih.name[i] == 0x1A)
-				ih.name[i] = '\0';
-			else
-				break;
-		}
-
 		memcpy(song.instrName[editor.curInstr], ih.name, 22);
 		song.instrName[editor.curInstr][22] = '\0';
 
+		pauseAudio();
+
+		freeInstr(editor.curInstr);
+
 		if (ih.antSamp > 0)
 		{
+			if (!allocateInstr(editor.curInstr))
+			{
+				resumeAudio();
+				okBoxThreadSafe(0, "System message", "Not enough memory!");
+				goto loadDone;
+			}
+
 			// sanitize stuff for malicious instruments
 			ih.midiProgram = CLAMP(ih.midiProgram, 0, 127);
-			ih.midiBend    = CLAMP(ih.midiBend,    0,  36);
+			ih.midiBend = CLAMP(ih.midiBend, 0, 36);
 
 			if (ih.midiChannel > 15) ih.midiChannel = 15;
-			if (ih.mute     !=    1) ih.mute        = 0;
-			if (ih.midiOn   !=    1) ih.midiOn      = 0;
-			if (ih.vibDepth >  0x0F) ih.vibDepth    = 0x0F;
-			if (ih.vibRate  >  0x3F) ih.vibRate     = 0x3F;
-			if (ih.vibTyp   >     3) ih.vibTyp      = 0;
+			if (ih.mute != 1) ih.mute = 0;
+			if (ih.midiOn!= 1) ih.midiOn = 0;
+			if (ih.vibDepth > 0x0F) ih.vibDepth = 0x0F;
+			if (ih.vibRate > 0x3F) ih.vibRate = 0x3F;
+			if (ih.vibTyp > 3) ih.vibTyp = 0;
 
 			for (int16_t i = 0; i < 96; i++)
 			{
-				if (ih.ta[i] > 0x0F)
-					ih.ta[i] = 0x0F;
+				if (ih.ta[i] > 15)
+					ih.ta[i] = 15;
 			}
 
 			if (ih.envVPAnt > 12) ih.envVPAnt = 12;
@@ -3300,33 +3128,23 @@ static int32_t SDLCALL loadInstrThread(void *ptr)
 			if (ih.envPSust > 11) ih.envPSust = 11;
 			// ----------------------------------------
 
-			setDefEnvelopes(editor.curInstr);
-			memcpy(instr[editor.curInstr].ta, ih.ta, INSTR_SIZE);
+			memcpy(instr[editor.curInstr]->ta, ih.ta, INSTR_SIZE);
 
 			if (fread(ih.samp, sizeof (sampleHeaderTyp) * ih.antSamp, 1, f) != 1)
 			{
-				clearInstr(editor.curInstr);
+				freeInstr(editor.curInstr);
 				resumeAudio();
 				okBoxThreadSafe(0, "System message", "General I/O error during loading! Is the file in use?");
 				goto loadDone;
 			}
 
 			for (int16_t i = 0; i < ih.antSamp; i++)
-				memcpy(&instr[editor.curInstr].samp[i], &ih.samp[i], 12 + 4 + 24);
+				memcpy(&instr[editor.curInstr]->samp[i], &ih.samp[i], 12 + 4 + 24);
 		}
 
 		for (int16_t i = 0; i < ih.antSamp; i++)
 		{
-			s = &instr[editor.curInstr].samp[i];
-
-			// trim off spaces at end of name
-			for (int16_t j = 21; j >= 0; j--)
-			{
-				if (s->name[j] == ' ' || s->name[j] == 0x1A)
-					s->name[j] = '\0';
-				else
-					break;
-			}
+			s = &instr[editor.curInstr]->samp[i];
 
 			// sanitize stuff for malicious modules
 			if (s->vol > 64)
@@ -3343,7 +3161,7 @@ static int32_t SDLCALL loadInstrThread(void *ptr)
 				s->pek = (int8_t *)malloc(s->len + LOOP_FIX_LEN);
 				if (s->pek == NULL)
 				{
-					clearInstr(editor.curInstr);
+					freeInstr(editor.curInstr);
 					resumeAudio();
 					okBoxThreadSafe(0, "System message", "Not enough memory!");
 					goto loadDone;
@@ -3351,7 +3169,7 @@ static int32_t SDLCALL loadInstrThread(void *ptr)
 
 				if (fread(s->pek, s->len, 1, f) != 1)
 				{
-					clearInstr(editor.curInstr);
+					freeInstr(editor.curInstr);
 					resumeAudio();
 					okBoxThreadSafe(0, "System message", "General I/O error during loading! Is the file in use?");
 					goto loadDone;
@@ -3364,7 +3182,7 @@ static int32_t SDLCALL loadInstrThread(void *ptr)
 				{
 					s->typ &= ~32;
 
-					s->len  /= 2;
+					s->len /= 2;
 					s->repL /= 2;
 					s->repS /= 2;
 
@@ -3390,24 +3208,19 @@ static int32_t SDLCALL loadInstrThread(void *ptr)
 		{
 			// PAT - Gravis Ultrasound GF1 patch
 
-			if (ih_PAT.layers > 1 || ih_PAT.antSamp > 16)
+			if (ih_PAT.layers > 1 || ih_PAT.antSamp > 16 || ih_PAT.antSamp == 0)
 			{
 				okBoxThreadSafe(0, "System message", "Incompatible instrument!");
 				goto loadDone;
 			}
 
 			pauseAudio();
-			clearInstr(editor.curInstr);
+			freeInstr(editor.curInstr);
 
-			if (ih_PAT.antSamp > 0)
-				setDefEnvelopes(editor.curInstr);
-
-			for (int16_t j = 15; j >= 0; j--)
+			if (!allocateInstr(editor.curInstr))
 			{
-				if (ih_PAT.instrName[j] == ' ')
-					ih_PAT.instrName[j] = '\0';
-				else
-					break;
+				okBoxThreadSafe(0, "System message", "Not enough memory!");
+				goto loadDone;
 			}
 
 			memset(song.instrName[editor.curInstr], 0, 22 + 1);
@@ -3415,12 +3228,12 @@ static int32_t SDLCALL loadInstrThread(void *ptr)
 
 			for (int16_t i = 0; i < ih_PAT.antSamp; i++)
 			{
-				s = &instr[editor.curInstr].samp[i];
-				ins = &instr[editor.curInstr];
+				s = &instr[editor.curInstr]->samp[i];
+				ins = instr[editor.curInstr];
 
 				if (fread(&ih_PATWave, 1, sizeof (ih_PATWave), f) != sizeof (ih_PATWave))
 				{
-					clearInstr(editor.curInstr);
+					freeInstr(editor.curInstr);
 					resumeAudio();
 					okBoxThreadSafe(0, "System message", "General I/O error during loading! Is the file in use?");
 					goto loadDone;
@@ -3429,7 +3242,7 @@ static int32_t SDLCALL loadInstrThread(void *ptr)
 				s->pek = (int8_t *)malloc(ih_PATWave.waveSize + LOOP_FIX_LEN);
 				if (s->pek == NULL)
 				{
-					clearInstr(editor.curInstr);
+					freeInstr(editor.curInstr);
 					resumeAudio();
 					okBoxThreadSafe(0, "System message", "Not enough memory!");
 					goto loadDone;
@@ -3442,7 +3255,7 @@ static int32_t SDLCALL loadInstrThread(void *ptr)
 					ins->vibDepth = ih_PATWave.vibDepth / 2; if (ins->vibDepth > 0x0F) ins->vibDepth = 0x0F;
 				}
 
-				s = &instr[editor.curInstr].samp[i];
+				s = &instr[editor.curInstr]->samp[i];
 
 				memcpy(s->name, ih_PATWave.name, 7);
 
@@ -3491,7 +3304,7 @@ static int32_t SDLCALL loadInstrThread(void *ptr)
 
 				if (fread(s->pek, ih_PATWave.waveSize, 1, f) != 1)
 				{
-					clearInstr(editor.curInstr);
+					freeInstr(editor.curInstr);
 					resumeAudio();
 					okBoxThreadSafe(0, "System message", "General I/O error during loading! Is the file in use?");
 					goto loadDone;
@@ -3515,6 +3328,7 @@ static int32_t SDLCALL loadInstrThread(void *ptr)
 loadDone:
 	fclose(f);
 
+	fixSampleName(editor.curInstr);
 	editor.updateCurInstr = true; // setMouseBusy(false) is called in the input/video thread when done
 
 	if (stereoWarning)

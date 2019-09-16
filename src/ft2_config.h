@@ -1,12 +1,11 @@
-#ifndef __FT2_CONFIG_H
-#define __FT2_CONFIG_H
+#pragma once
 
 #include <stdint.h>
 #include <stdbool.h>
 #include "ft2_replayer.h"
+#include "ft2_palette.h"
 
 #define CFG_ID_STR "FastTracker 2.0 configuration file\x1A"
-#define CFG_VER 0x0101
 #define CONFIG_FILE_SIZE 1736
 
 enum
@@ -19,68 +18,74 @@ enum
 	CONFIG_HIDE_ERRORS = 0,
 	CONFIG_SHOW_ERRORS = 1,
 
-	MOUSE_IDLE_SHAPE_NICE    = 0,
-	MOUSE_IDLE_SHAPE_UGLY    = 1,
-	MOUSE_IDLE_SHAPE_AWFUL   = 2,
+	MOUSE_IDLE_SHAPE_NICE = 0,
+	MOUSE_IDLE_SHAPE_UGLY = 1,
+	MOUSE_IDLE_SHAPE_AWFUL = 2,
 	MOUSE_IDLE_SHAPE_USEABLE = 3,
-	MOUSE_IDLE_TEXT_EDIT     = 4,
+	MOUSE_IDLE_TEXT_EDIT = 4,
 
 	MOUSE_BUSY_SHAPE_CLOCK = 0,
 	MOUSE_BUSY_SHAPE_GLASS = 2,
 
-	MAX_CHANS_SHOWN_4  = 0,
-	MAX_CHANS_SHOWN_6  = 1,
-	MAX_CHANS_SHOWN_8  = 2,
+	MAX_CHANS_SHOWN_4 = 0,
+	MAX_CHANS_SHOWN_6 = 1,
+	MAX_CHANS_SHOWN_8 = 2,
 	MAX_CHANS_SHOWN_12 = 3,
 
-	PATT_FONT_CAPITALS   = 0,
-	PATT_FONT_LOWERCASE  = 1,
-	PATT_FONT_FUTURE     = 2,
-	PATT_FONT_BOLD       = 3,
+	PATT_FONT_CAPITALS = 0,
+	PATT_FONT_LOWERCASE = 1,
+	PATT_FONT_FUTURE = 2,
+	PATT_FONT_BOLD = 3,
 
-	PAL_ARCTIC           = 0,
-	PAL_AURORA_BOREALIS  = 1,
-	PAL_BLUES            = 2,
-	PAL_GOLD             = 3,
-	PAL_HEAVY_METAL      = 4,
-	PAL_JUNGLE           = 5,
-	PAL_LITHE_DARK       = 6,
-	PAL_ROSE             = 7,
-	PAL_SPACE_PIGS       = 8,
-	PAL_VIOLENT          = 9,
-	PAL_WHY_COLORS       = 10, // default
-	PAL_USER_DEFINED     = 11,
+	PAL_ARCTIC = 0,
+	PAL_AURORA_BOREALIS = 1,
+	PAL_BLUES = 2,
+	PAL_GOLD = 3,
+	PAL_HEAVY_METAL = 4,
+	PAL_JUNGLE = 5,
+	PAL_LITHE_DARK = 6,
+	PAL_ROSE = 7,
+	PAL_SPACE_PIGS = 8,
+	PAL_VIOLENT = 9,
+	PAL_WHY_COLORS = 10, // default
+	PAL_USER_DEFINED = 11,
 
-	FILESORT_EXT  = 0,
+	FILESORT_EXT = 0,
 	FILESORT_NAME = 1,
 
-	ONE_PLAYER  = 0,
+	ONE_PLAYER = 0,
 	TWO_PLAYERS = 1,
 
-	DIFFICULTY_NOVICE  = 0,
+	DIFFICULTY_NOVICE = 0,
 	DIFFICULTY_AVERAGE = 1,
-	DIFFICULTY_PRO     = 2,
-	DIFFICULTY_MANIAC  = 3,
+	DIFFICULTY_PRO = 2,
+	DIFFICULTY_MANIAC = 3,
 
-	DONT_SHOW_S3M_LOAD_WARNING_FLAG        = 64,
+	DONT_SHOW_S3M_LOAD_WARNING_FLAG = 64,
 	DONT_SHOW_NOT_YET_APPLIED_WARNING_FLAG = 32,
 
-	NO_VOLRAMP_FLAG  = 1,
-	BITDEPTH_16      = 2,
-	BITDEPTH_24      = 4,
-	BUFFSIZE_512     = 8,
-	BUFFSIZE_1024    = 16,
-	BUFFSIZE_2048    = 32,
-	BUFFSIZE_4096    = 64,
-	LINED_SCOPES     = 128,
+	// specialFlags
+	NO_VOLRAMP_FLAG = 1,
+	BITDEPTH_16 = 2,
+	BITDEPTH_24 = 4,
+	BUFFSIZE_512 = 8,
+	BUFFSIZE_1024 = 16,
+	BUFFSIZE_2048 = 32,
+	BUFFSIZE_4096 = 64,
+	LINED_SCOPES = 128,
 
-	WINSIZE_AUTO     = 1,
-	WINSIZE_1X       = 2,
-	WINSIZE_2X       = 4,
-	WINSIZE_3X       = 8,
-	WINSIZE_4X       = 16,
-	FILTERING        = 32,
-	FORCE_VSYNC_OFF  = 64,
+	// specialFlags2
+	DITHERED_AUDIO = 1,
+	HARDWARE_MOUSE = 2,
+
+	// windowFlags
+	WINSIZE_AUTO = 1,
+	WINSIZE_1X = 2,
+	WINSIZE_2X = 4,
+	WINSIZE_3X = 8,
+	WINSIZE_4X = 16,
+	FILTERING = 32,
+	FORCE_VSYNC_OFF = 64,
 	START_IN_FULLSCR = 128,
 };
 
@@ -90,7 +95,8 @@ enum
 #endif
 typedef struct highScoreType_t
 {
-	char name[1 + 22];
+	uint8_t nameLen;
+	char name[22];
 	int32_t score;
 	uint8_t level;
 }
@@ -104,54 +110,36 @@ typedef struct config_t // exact FT2.CFG layout (with some modifications)
 	char cfgID[35];
 	uint16_t ver;
 	uint32_t audioFreq; // was "BIOSSum" (never used in FT2)
-	int16_t utEnhet;
-	int16_t masterVol;
-	int16_t inputVol;
-	int16_t inputDev;
-	uint8_t interpolation;
-	uint8_t internMode;
-	uint8_t stereoMode;
-	uint8_t audioDither;         // was lo-byte of "sample16Bit" (used for sampling)
-	uint8_t dontShowAgainFlags;  // was hi-byte of "sample16Bit" (used for sampling)
-	int16_t inEnhet;
-	int16_t sbPort, sbDMA, sbHiDMA, sbInt, sbOutFilter;
-	uint8_t true16Bit;
-	uint8_t ptnUnpressed, ptnHex, ptnInstrZero, ptnFrmWrk, ptnLineLight, ptnS3M, ptnChnNumbers;
+	int16_t utEnhet, masterVol, inputVol, inputDev;
+	uint8_t interpolation, internMode, stereoMode;
+	uint8_t specialFlags2; // was lo-byte of "sample16Bit" (was used for external audio sampling)
+	uint8_t dontShowAgainFlags; // was hi-byte of "sample16Bit" (was used for external audio sampling)
+	int16_t inEnhet, sbPort, sbDMA, sbHiDMA, sbInt, sbOutFilter;
+	uint8_t true16Bit, ptnUnpressed, ptnHex, ptnInstrZero, ptnFrmWrk, ptnLineLight, ptnS3M, ptnChnNumbers;
 	int16_t ptnLineLightStep, ptnFont, ptnAcc;
-	uint8_t palBackgroundR, palBackgroundG, palBackgroundB;
-	uint8_t palPattTextR, palPattTextG, palPattTextB;
-	uint8_t palBlockMarkR, palBlockMarkG, palBlockMarkB;
-	uint8_t palTextOnBlockR, palTextOnBlockG, palTextOnBlockB;
-	uint8_t palDesktopR, palDesktopG, palDesktopB;
-	uint8_t palForegroundR, palForegroundG, palForegroundB;
-	uint8_t palButtonsR, palButtonsG, palButtonsB;
-	uint8_t palButtonTextR, palButtonTextG, palButtonTextB;
-	uint8_t palDesktop2R, palDesktop2G, palDesktop2B;
-	uint8_t palDesktop1R, palDesktop1G, palDesktop1B;
-	uint8_t palButtons2R, palButtons2G, palButtons2B;
-	uint8_t palButtons1R, palButtons1G, palButtons1B;
-	uint8_t palMouseR, palMouseG, palMouseB;
-	uint8_t palUnused1R, palUnused1G, palUnused1B;
-	uint8_t palUnused2R, palUnused2G, palUnused2B;
-	uint8_t palUnused3R, palUnused3G, palUnused3B;
+	pal16 userPal[16];
 	uint16_t comMacro[10], volMacro[10];
-	uint8_t multiRec, multiKeyJazz, multiEdit;
-	uint8_t multiRecChn[MAX_VOICES];
-	uint8_t recRelease, recQuant;
+	uint8_t multiRec, multiKeyJazz, multiEdit, multiRecChn[32], recRelease, recQuant;
 	int16_t recQuantRes;
 	uint8_t recTrueInsert;
 	int16_t recMIDIChn;
-	uint8_t recMIDIAllChn;
-	uint8_t recMIDITransp;
+	uint8_t recMIDIAllChn, recMIDITransp;
 	int16_t recMIDITranspVal;
-	uint8_t recMIDIVelosity;
-	uint8_t recMIDIAftert;
+	uint8_t recMIDIVelosity, recMIDIAftert;
 	int16_t recMIDIVolSens;
-	uint8_t recMIDIAllowPC;
-	uint8_t smpCutToBuffer, ptnCutToBuffer;
-	uint8_t killNotesOnStopPlay;
-	uint8_t specialFlags, windowFlags; // was "int16_t PtnDefaultLen" (never used in FT2)
-	char modulesPath[1+80], instrPath[1+80], samplesPath[1+80], patternsPath[1+80], tracksPath[1+80];
+	uint8_t recMIDIAllowPC, smpCutToBuffer, ptnCutToBuffer, killNotesOnStopPlay;
+	uint8_t specialFlags; // was lo-byte of "ptnDefaultLen" (never used in FT2)
+	uint8_t windowFlags; // was hi-byte of "ptnDefaultLen" (never used in FT2)
+	uint8_t modulesPathLen;
+	char modulesPath[79+1];
+	uint8_t instrPathLen;
+	char instrPath[79+1];
+	uint8_t samplesPathLen;
+	char samplesPath[79+1];
+	uint8_t patternsPathLen;
+	char patternsPath[79+1];
+	uint8_t tracksPathLen;
+	char tracksPath[79+1];
 	uint8_t id_FastLogo, id_TritonProd;
 	int16_t cfg_StdPalNr;
 	uint8_t cfg_AutoSave;
@@ -160,32 +148,16 @@ typedef struct config_t // exact FT2.CFG layout (with some modifications)
 	int16_t NI_AntPlayers, NI_Speed;
 	uint8_t NI_Surround, NI_Grid, NI_Wrap;
 	int32_t NI_HighScoreChecksum;
-	int16_t mouseType, mouseAnimType, mouseSpeed, keyLayout;
-	int16_t boostLevel;
-	int16_t stdEnvP[6][2][12][2];
-	uint16_t stdVolEnvAnt[6];
-	uint16_t stdVolEnvSust[6];
-	uint16_t stdVolEnvRepS[6];
-	uint16_t stdVolEnvRepE[6];
-	uint16_t stdPanEnvAnt[6];
-	uint16_t stdPanEnvSust[6];
-	uint16_t stdPanEnvRepS[6];
-	uint16_t stdPanEnvRepE[6];
-	uint16_t stdFadeOut[6];
-	uint16_t stdVibRate[6];
-	uint16_t stdVibDepth[6];
-	uint16_t stdVibSweep[6];
-	uint16_t stdVibTyp[6];
-	uint16_t stdVolEnvTyp[6];
-	uint16_t stdPanEnvTyp[6];
-	int16_t antStars;
-	int16_t ptnMaxChannels;
+	int16_t mouseType, mouseAnimType, mouseSpeed, keyLayout, boostLevel, stdEnvP[6][2][12][2];
+	uint16_t stdVolEnvAnt[6], stdVolEnvSust[6], stdVolEnvRepS[6], stdVolEnvRepE[6];
+	uint16_t stdPanEnvAnt[6], stdPanEnvSust[6], stdPanEnvRepS[6], stdPanEnvRepE[6];
+	uint16_t stdFadeOut[6], stdVibRate[6], stdVibDepth[6], stdVibSweep[6], stdVibTyp[6];
+	uint16_t stdVolEnvTyp[6], stdPanEnvTyp[6];
+	int16_t antStars, ptnMaxChannels;
 	uint16_t sampleRates[16];
 	uint8_t cfg_OverwriteWarning;
-	int16_t cfg_SortPriority;
-	int16_t cfg_DPMIMemLimit;
-	uint8_t cfg_DPMIMemLimitEnabled;
-	uint8_t cdr_Sync;
+	int16_t cfg_SortPriority, cfg_DPMIMemLimit;
+	uint8_t cfg_DPMIMemLimitEnabled, cdr_Sync;
 }
 #ifdef __GNUC__
 __attribute__ ((packed))
@@ -214,14 +186,6 @@ void configAmpDown(void);
 void configAmpUp(void);
 void configMasterVolDown(void);
 void configMasterVolUp(void);
-void configPalRDown(void);
-void configPalRUp(void);
-void configPalGDown(void);
-void configPalGUp(void);
-void configPalBDown(void);
-void configPalBUp(void);
-void configPalContDown(void);
-void configPalContUp(void);
 void configQuantizeUp(void);
 void configQuantizeDown(void);
 void configMIDIChnUp(void);
@@ -249,7 +213,7 @@ void rbConfigMouseNice(void);
 void rbConfigMouseUgly(void);
 void rbConfigMouseAwful(void);
 void rbConfigMouseUseable(void);
-void rbConfigScopeOriginal(void);
+void rbConfigScopeStandard(void);
 void rbConfigMouseBusyVogue(void);
 void rbConfigMouseBusyMrH(void);
 void rbConfigScopeLined(void);
@@ -261,24 +225,6 @@ void rbConfigFontCapitals(void);
 void rbConfigFontLowerCase(void);
 void rbConfigFontFuture(void);
 void rbConfigFontBold(void);
-void rbConfigPalPatternText(void);
-void rbConfigPalBlockMark(void);
-void rbConfigPalTextOnBlock(void);
-void rbConfigPalMouse(void);
-void rbConfigPalDesktop(void);
-void rbConfigPalButttons(void);
-void rbConfigPalArctic(void);
-void rbConfigPalLitheDark(void);
-void rbConfigPalAuroraBorealis(void);
-void rbConfigPalRose(void);
-void rbConfigPalBlues(void);
-void rbConfigPalSpacePigs(void);
-void rbConfigPalGold(void);
-void rbConfigPalViolent(void);
-void rbConfigPalHeavyMetal(void);
-void rbConfigPalWhyColors(void);
-void rbConfigPalJungle(void);
-void rbConfigPalUserDefined(void);
 void rbFileSortExt(void);
 void rbFileSortName(void);
 void rbWinSizeAuto(void);
@@ -298,6 +244,7 @@ void cbConfigFramework(void);
 void cbConfigLineColors(void);
 void cbConfigChanNums(void);
 void cbConfigShowVolCol(void);
+void cbHardwareMouse(void);
 void cbSampCutToBuff(void);
 void cbPattCutToBuff(void);
 void cbKillNotesAtStop(void);
@@ -319,13 +266,7 @@ void cbFullScreen(void);
 void cbPixelFilter(void);
 void sbAmp(uint32_t pos);
 void sbMasterVol(uint32_t pos);
-void sbPalRPos(uint32_t pos);
-void sbPalGPos(uint32_t pos);
-void sbPalBPos(uint32_t pos);
-void sbPalContrastPos(uint32_t pos);
 void sbMIDISens(uint32_t pos);
 
 extern config_t config;
 extern config_t *defConfig;
-
-#endif

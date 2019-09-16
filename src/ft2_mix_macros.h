@@ -1,5 +1,4 @@
-#ifndef __FT2_MIX_MACROS_H
-#define __FT2_MIX_MACROS_H
+#pragma once
 
 #include "ft2_header.h"
 
@@ -21,17 +20,17 @@
 	audioMixL = audio.mixBufferL; \
 	audioMixR = audio.mixBufferR; \
 	mixInMono = (CDA_LVol == CDA_RVol); \
-	realPos   = v->SPos; \
-	pos       = v->SPosDec; \
+	realPos = v->SPos; \
+	pos = v->SPosDec; \
 
 #define GET_MIXER_VARS_RAMP \
-	audioMixL  = audio.mixBufferL; \
-	audioMixR  = audio.mixBufferR; \
+	audioMixL = audio.mixBufferL; \
+	audioMixR = audio.mixBufferR; \
 	CDA_LVolIP = v->SLVolIP; \
 	CDA_RVolIP = v->SRVolIP; \
-	mixInMono  = (v->SLVol2 == v->SRVol2) && (CDA_LVolIP == CDA_RVolIP); \
-	realPos    = v->SPos; \
-	pos        = v->SPosDec; \
+	mixInMono = (v->SLVol2 == v->SRVol2) && (CDA_LVolIP == CDA_RVolIP); \
+	realPos = v->SPos; \
+	pos = v->SPosDec; \
 
 #define SET_BASE8 \
 	CDA_LinearAdr = v->SBase8; \
@@ -132,7 +131,7 @@
 
 #define RENDER_8BIT_SMP_INTRP \
 	assert(smpPtr >= CDA_LinearAdr && smpPtr < CDA_LinearAdr+v->SLen); \
-	sample  = smpPtr[0]; \
+	sample = smpPtr[0]; \
 	sample2 = smpPtr[1]; \
 	sample3 = smpPtr[2]; \
 	INTERPOLATE8(sample, sample2, sample3, pos) \
@@ -142,7 +141,7 @@
 
 #define RENDER_8BIT_SMP_MONO_INTRP \
 	assert(smpPtr >= CDA_LinearAdr && smpPtr < CDA_LinearAdr+v->SLen); \
-	sample  = smpPtr[0]; \
+	sample = smpPtr[0]; \
 	sample2 = smpPtr[1]; \
 	sample3 = smpPtr[2]; \
 	INTERPOLATE8(sample, sample2, sample3, pos) \
@@ -153,7 +152,7 @@
 
 #define RENDER_16BIT_SMP_INTRP \
 	assert(smpPtr >= CDA_LinearAdr && smpPtr < CDA_LinearAdr+v->SLen); \
-	sample  = smpPtr[0]; \
+	sample = smpPtr[0]; \
 	sample2 = smpPtr[1]; \
 	sample3 = smpPtr[2]; \
 	INTERPOLATE16(sample, sample2, sample3, pos) \
@@ -163,7 +162,7 @@
 
 #define RENDER_16BIT_SMP_MONO_INTRP \
 	assert(smpPtr >= CDA_LinearAdr && smpPtr < CDA_LinearAdr+v->SLen); \
-	sample  = smpPtr[0]; \
+	sample = smpPtr[0]; \
 	sample2 = smpPtr[1]; \
 	sample3 = smpPtr[2]; \
 	INTERPOLATE16(sample, sample2, sample3, pos) \
@@ -191,7 +190,7 @@
 
 #define RENDER_8BIT_SMP_INTRP \
 	assert(smpPtr >= CDA_LinearAdr && smpPtr < CDA_LinearAdr+v->SLen); \
-	sample  = smpPtr[0]; \
+	sample = smpPtr[0]; \
 	sample2 = smpPtr[1]; \
 	INTERPOLATE8(sample, sample2, pos) \
 	sample <<= 12; \
@@ -200,7 +199,7 @@
 
 #define RENDER_8BIT_SMP_MONO_INTRP \
 	assert(smpPtr >= CDA_LinearAdr && smpPtr < CDA_LinearAdr+v->SLen); \
-	sample  = smpPtr[0]; \
+	sample = smpPtr[0]; \
 	sample2 = smpPtr[1]; \
 	INTERPOLATE8(sample, sample2, pos) \
 	sample <<= 12; \
@@ -210,7 +209,7 @@
 
 #define RENDER_16BIT_SMP_INTRP \
 	assert(smpPtr >= CDA_LinearAdr && smpPtr < CDA_LinearAdr+v->SLen); \
-	sample  = smpPtr[0]; \
+	sample = smpPtr[0]; \
 	sample2 = smpPtr[1]; \
 	INTERPOLATE16(sample, sample2, pos) \
 	sample <<= 12; \
@@ -219,7 +218,7 @@
 
 #define RENDER_16BIT_SMP_MONO_INTRP \
 	assert(smpPtr >= CDA_LinearAdr && smpPtr < CDA_LinearAdr+v->SLen); \
-	sample  = smpPtr[0]; \
+	sample = smpPtr[0]; \
 	sample2 = smpPtr[1]; \
 	INTERPOLATE16(sample, sample2, pos) \
 	sample <<= 12; \
@@ -327,8 +326,8 @@
 #define VOL0_OPTIMIZATION_NO_LOOP \
 	assert(numSamples <= 65536); \
 	\
-	pos     = v->SPosDec + ((v->SFrq & 0xFFFF) * numSamples); \
-	realPos = v->SPos    + ((v->SFrq >>    16) * numSamples) + (pos >> 16); \
+	pos = v->SPosDec + ((v->SFrq & 0xFFFF) * numSamples); \
+	realPos = v->SPos + ((v->SFrq >> 16) * numSamples) + (pos >> 16); \
 	\
 	if (realPos >= v->SLen) \
 	{ \
@@ -342,11 +341,11 @@
 #define VOL0_OPTIMIZATION_LOOP \
 	assert(numSamples <= 65536); \
 	\
-	pos     = v->SPosDec + ((v->SFrq & 0xFFFF) * numSamples); \
-	realPos = v->SPos    + ((v->SFrq >>    16) * numSamples) + (pos >> 16); \
+	pos = v->SPosDec + ((v->SFrq & 0xFFFF) * numSamples); \
+	realPos = v->SPos + ((v->SFrq >> 16) * numSamples) + (pos >> 16); \
 	\
 	while (realPos >= v->SLen) \
-		   realPos -= v->SRepL; \
+		realPos -= v->SRepL; \
 	\
 	pos &= 0xFFFF; \
 	SET_BACK_MIXER_POS
@@ -354,8 +353,8 @@
 #define VOL0_OPTIMIZATION_BIDI_LOOP \
 	assert(numSamples <= 65536); \
 	\
-	pos     = v->SPosDec + ((v->SFrq & 0xFFFF) * numSamples); \
-	realPos = v->SPos    + ((v->SFrq >>    16) * numSamples) + (pos >> 16); \
+	pos = v->SPosDec + ((v->SFrq & 0xFFFF) * numSamples); \
+	realPos = v->SPos + ((v->SFrq >> 16) * numSamples) + (pos >> 16); \
 	\
 	while (realPos >= v->SLen) \
 	{ \
@@ -365,5 +364,3 @@
 	\
 	pos &= 0xFFFF; \
 	SET_BACK_MIXER_POS
-
-#endif

@@ -1,0 +1,1180 @@
+Fasttracker II clone changelog (starting from beta #10 and up):
+NOTE: This may contain stuff that only a programmer understands!
+
+Beta #168 - 04.09.2019
+- Forgot to remove some Nibbles test code that resulted in your score being
+  set to 1234567 whenever you lost a life.
+
+Beta #167 - 25.08.2019
+- Crashfix: After loading a sample from a file, the tracker would start to
+  behave strangely and could crash in certain scenarios. This is yet another
+  bug from beta #163. Sorry for all the serious bugs after that version,
+  but I think I have fixed them all now!
+- Bugfix: Custom user colors/palette wouldn't be saved to config at all
+
+Beta #166 - 14.08.2019
+- Bugfix: The clone would crash if you attempted to paste sample data to an
+  empty instrument (not allocated). This bug was introduced in beta #163.
+
+Beta #165 - 09.08.2019
+- Bugfix: If all 22 character slots in a sample's name were used, weird things
+  would happen, and could very well end in a fatal crash where no backups
+  would be saved (!). I should get the "Most Stupid Bug" award for this one.
+- Bugfix: Fixed a possible issue with Nibbles highscore name entering if you
+  used all character slots.
+
+Beta #164 - 05.08.2019
+- Applied some NetBSD/illumos/SmartOS code patches that got sent in (untested)
+- Removed SSE macros to let the compiler optimize instead, and to make cross
+  compiling even simpler. We don't really need them anymore since most of the
+  speed-critical math in the clone is fixed-point these days.
+- macOS: Fixed intensive CPU usage if another window is completely covering the
+  FT2 clone window.
+- macOS: The SDL2.framework file in the FT2 clone app was larger than it needed
+  to be, which was fixed by the SDL team not long ago. It has been replaced.
+- Small code cleanup
+
+Beta #163 - 29.07.2019
+- SDL updated from v2.0.9 to v2.0.10
+- Bugfix: Don't unmute channels when loading a new song (FT2 behavior)
+- Bugfix: Disk Op. didn't list correct kB/MB/GB filesizes (1000 vs. 1024)
+  + rounding upwards on kB/MB/GB sizes.
+- The Trim screen is a bit cleaner looking now
+- Instrument slots are now allocated as needed (FT2 behavior). This new
+  behavior means little to the user, but makes it easier for me to port the FT2
+  code more directly when it works like this. This also means that XMs are
+  now saved exactly the same way FT2 does it, except for certain uninitialized
+  instrument header fields (FT2 bug) being set to zero.
+- Updated the help text
+
+Beta #162 - 12.07.2019
+- Added a "Hardware mouse" option in Config -> Layout
+- Changed the help text a little ("Problems/FAQ" and "Known bugs")
+
+Beta #161 - 04.07.2019 (updated 09.07.2019)
+- Bugfix: If you held down a sample data loop pin while a system request was
+  about to be shown, the loop pins would act strange lateron.
+- Bugfix: Fixed a MIDI-related memory leak when pressing "Load config." in the
+  Config screen.
+- Bugfix: The palette editor scrollbar thumbs would not draw properly when
+  dragging them.
+- Bugfix: Attempting to sample in stereo (Smp. Ed.) at the last sample slot
+  would result in a crash.
+- Bugfix: Using keyboard shortcuts to interact with a system request/message
+  could trigger an unwanted "note key up" event after the box closed. (déjà vu)
+- The palette editor is now rewritten to behave exactly like original FT2
+- Code cleanup
+- Updated src\gfxdata\bmp\readme.txt
+>> 09.07.2019:
+- Removed "-mno-ms-bitfields" from make-linux.sh as it prevented you from
+  compiling the FT2 clone on some systems, and it was not really needed.
+- Removed "-Wno-stringop-truncation" from from make-linux.sh
+- Fixed some compiler warnings in ft2_sample_ed.c
+- Windows: Edited the Visual Studio project to generate a debug database in
+  release mode, which is handy for debugging.
+
+Beta #160 - 19.06.2019  (updated 20.06.2019)
+- Bugfix: Certain instrument properties could be modified even if the current
+  instrument was zero. This is a special ins. number for pattern editing, it's
+  not a real instrument. (You can set ins. #0 by pressing 0 on the numpad).
+- Bugfix: It was impossible to select an instrument higher than 0x60 (100) when
+  using the numpad keys.
+- Bugfix: "Srnk." (shrink pattern) would erase the last row after its operation
+- Bugfix: When loading a floating point .wav, it would only load silence unless
+  the amplitude peaked at max (1.0).
+- Bugfix: 16-bit mono .aiff files would not load correctly at all!
+- When loading 24-bit .wav/.aiff files, properly normalize amplitude before
+  converting to 16-bit. This now takes up more CPU time and RAM, but it's worth
+  it.
+- Default instrument envelopes were always read from preset slot #1. I don't
+  like this at all, as it could mess things up when loading sample-only songs.
+  It has now been changed to always use the stock envelope values when loading
+  such files or when a new project is started (or instruments zapped).
+- Properly reject .it (Impulse Tracker) modules when attempted to be loaded
+- Code cleanup. Proper space alignment for special tab indents, removed
+  extreme use of parenthesis, spaces etc.
+>> 20.06.2019:
+- Just some small Disk Op. fixes
+
+Beta #159 - 15.06.2019
+- The audio sampling tool in Smp. Ed. now supports stereo sampling
+- Several tools in Smp. Ed. (Mix, Resample, Echo, Volume) now accepts
+  pressing Enter on the keyboard.
+
+Beta #158 - 02.06.2019
+- Removed the sample unrolling optimization from beta #157 because it had
+  problems with small pingpong looped samples... D'oh!
+
+Beta #157 - 27.05.2019
+- Fixed: Songs passed to the binary as an argument had to include full path or
+  else it would refuse to load.
+- Fixed: When loading unsigned 8-bit stereo .WAVs and reading the left or right
+  channel only, the very last sample point would be wrong (and cause a click).
+- Fixed: Properly clamp Disk Op. filesizes to 2GB on non-Windows systems
+- AIFF/WAV sample loading now takes up less RAM during loading. WAV loading is
+  also faster, especially when loading 24-bit samples.
+- Never attempt to load files bigger than 2GB (not compatible), and also ask
+  the user before loading files over 128MB in size, in case it was by accident.
+- Allow loading even more broken/quirky .MOD/.FT songs
+- Pause audio mixer while hand drawing sample data with the mouse, this is
+  needed for safety reasons. (original FT2 does this too)
+- Unroll tight sample loops to prevent the audio channel mixer from doing many
+  loop wrapping iterations (minor optimization). This is only applied if there
+  is no data after the loop end point. Also yes, this is done in real time
+  as you modify sample data or load new samples.
+- Small code cleanup
+
+Beta #156 - 19.05.2019
+- Channel volumes are now internally calculated with four times more precision.
+  This means that you will have more volume details, but only noticable on very
+  low channel volumes (f.ex. global vol. or instr. vol. being close to zero).
+  
+Beta #155 - 18.05.2019
+- The old dithered 4-color FT2 logo in the About screen has been replaced with
+  a true color version that I tried to somewhat replicate myself. The old one 
+  simply didn't look very nice when upscaled...
+  Sorry for the lousy changelog for this version!
+
+Beta #154 - 12.05.2019
+- Fixed: .MOD/.FT songs with more than 100 patterns would refuse to load
+
+Beta #153 - 29.04.2019
+- Fixed a bug where rendering songs to WAV at 192kHz with a low BPM could
+  make the program crash.
+- Small audio code cleanup
+
+Beta #152 - 27.04.2019
+- Fixed a potential calculation overflow bug in the mixer code in beta #151.
+  This is a critical fix, so please update.
+- Windows: Updated the Visual Studio project from 2017 to 2019
+
+Beta #151 - 25.04.2019
+- Fixed: The interpolation routine was slightly wrong when playing backwards on
+  pingpong-samples.
+- Small mixer optimization for very tight sample loops
+- Fixed yet a problem with the sample playback line in Smp. Ed. when flicking
+  through the instrument list.
+- Fixed a bug where the scopes and sample playback line in Smp. Ed. would not
+  work correctly with the "Play Wave/Range/Display" function, when the currently
+  selected sample is not 0.
+
+Beta #150 - 22.04.2019
+- Less strict validation of instrument loading in XM files (fixes some quirky
+  .XM modules refusing to load).
+
+Beta #149 - 18.04.2019 (updated the same day)
+- Bug fix: If the window is minimized while you double-click on an associated
+  module in your OS, maximize the window before asking if you want to discard
+  unsaved changes.
+>> Updates:
+- Updated rtmidi to version 4.0
+- Windows: Updated SDL to version 2.0.9 (finally found a way to prevent a
+  serious bug with 2.0.9, hence why I have been using 2.0.8 for a long time).
+- Increased "volume toolbox" (Smp. Ed.) range from -200..200% to -500..500%
+- Windows: Default Disk Op. directory is now "\Users\username"
+
+Beta #148 - 10.04.2019
+- Even more bugfixes to the sample playback line in Smp. Ed.
+  It should be bug-free now, I hope.
+
+Beta #147 - 08.04.2019
+- Fixed a bug from beta #146 where the sample playback line in Smp. Ed. could
+  wrongly be rendered if you switched samples after using the
+  "Play Wave/Range/Display" function.
+- Updated some of the help text in "Known bugs"
+
+Beta #146 - 02.04.2019 
+- Fixed a bug where you couldn't select envelope points appropriately
+  (bug present since beta #140).
+- Fixed a problem where the pattern data scrolling would start to stutter more
+  if you left the song playing for a minute or so.
+- Fixed a problem that made the scopes slightly delayed to the music. Most
+  people won't notice a difference, though.
+- Fixed a scope bug where it could display one frame of bogus data before a
+  new sample trigger.
+- More fixes to .MOD/.STM/.S3M import
+- Made some changes to the help text
+  ("How to use FT2", "Problems/FAQ", "Known bugs").
+
+Beta #145 - 31.03.2019
+- Fixed some bugs in the .MOD saving routine
+- Slightly improved the .STM loader
+
+Beta #144 - 30.03.2019 (updated 30.03.2019)
+- Further fixing to prevent more possible stutter with vsync (60Hz monitor)
+  on some monitors (rare case).
+>> 30.03.2019:
+- Sometimes the mouse would be off center when toggling fullscreen mode
+- Forgot to round when doing mouse scaling
+- 1.5-bit dithering wasn't implemented properly
+
+Beta #143 - 29.03.2019
+- Scopes have been lowered from 60Hz to 55Hz to prevent random stutters
+  on some systems because of timing interference. If your monitor is not
+  running at 59Hz/60Hz, they will stutter anyways.
+- Fixed a bug where the pattern delay (EEx) effect was not reset every time you
+  press Play.
+
+Beta #142 - 18.03.2019
+- XM loader: fixed a bug where XMs with stereo samples would display a
+  warning message box for every stereo sample loaded, instead of just one.
+
+Beta #141 - 13.03.2019 (updated 17.03.2019)
+- Fixed compiler errors when compiling for non-x86 platforms
+- Fixed some fullscreen-bugs with the mouse when using two or more monitors
+  with different screen resolutions.
+>> 17.03.2019:
+- Big code cleanup (spaces -> tabs, /* comment */ -> // comment, etc)
+
+Beta #140 - 08.03.2019
+- The 32-bit Windows version of the FT2 clone no longer requires the SSE2 CPU
+  instruction set to function, but still takes advantage of it if it's present.
+- Fixed a bug where the sample data scrollbar was broken on very long samples
+- Fixed a bug where you could interact with the scopes while certain types
+  of tool boxes were shown (Smp. Ed.).
+- Fixed a bug where the "Add memory to sample" checkbox in the Echo tool
+  (Smp. Ed.) was always unchecked the next time you opened the tool.
+- Fixed a bug where "Get maximum scale" in the Volume tool (Smp. Ed.) could
+  return bogus values on *very* silent parts.
+- Fixed a bug where sample data could be incorrectly drawn when zoomed in as
+  far as you get while scrolling, on a very big sample.
+- Bug fix: Make sure a sample never exceeds max sample length while editing it
+- Lowered max sample length from 2GB to 1GB to prevent crashes
+- Some missing keyboard bindings were added to the "Keyboard" section in the
+  help text.
+- Some potential time-consuming tasks were put in threads to not temporarily
+  halt the program (Smp. Ed. functions).
+- The Echo tool in Smp. Ed. will now listen to mouse button down/ESC/SIGTERM
+  as a way to force-quit it. This tool can take literally forever if abused.
+- Code cleanup (now using "bool" type, etc)
+  
+Beta #139 - 06.03.2019
+- The mixer interpolation routine would overflow if a sample's pingpong
+  loop length was 1.
+- Removed the 32000Hz audio frequency setting (kinda pointless these days)
+- Small optimization on scope rate calculation
+
+Beta #138 - 25.02.2019 (updated 27.02.2019)
+- Touchscreen input should now work properly in fullscreen mode
+>> 27.02.2019
+- Code cleanup
+
+Beta #137 - 14.02.2019
+- Mouse scaling was 100% broken on Macs with retina displays (high-DPI).
+  Sorry! This is fixed now.
+
+Beta #136 - 14.02.2019
+- French keyboard layout users can now enter numbers in the pattern data
+  with the left SHIFT key (like normal for the FR layout).
+- You can now toggle extended pattern editor mode with the print screen key
+  (like in real FT2. You can also use CTRL+Z as always).
+  
+Beta #135 - 12.02.2019
+- Click delay on repeated buttons is now lowered to better match real FT2
+- Certain up/down buttons now inc/dec just like real FT2, e.g. if you hold it
+  down it will inc/dec semi-fast for a little bit, then faster (two-phased).
+- Some scrollbars were supposed to scroll instantly with no delay
+- No need to do 64-bit calc. in the scrollbar routines, reverted to 32-bit
+- No need to do floating point operations on mouse coord scaling!
+- Some minor things were changed to better match real FT2
+- Code cleanup
+
+Beta #134 - 11.02.2019
+- Mouse position was incorrectly scaled in fullscreen mode (the coursor wouldn't
+   move in the correct speed in some cases).
+- Code cleanup (now using assert.h macro, removed some unused variables/code)
+
+Beta #133 - 08.02.2019
+- Very minor optimization to the replayer rate calculation routine
+- Code cleanup
+
+Beta #132 - 29.01.2019
+- Fixed a bug where the sampling position line in smp. ed. could be drawn
+  wrongly for a split second when switching between samples you're jamming.
+  (samples, not instruments).
+- Code cleanup
+
+Beta #131 - 26.01.2019
+- The linear interpolation routine in the audio channel mixer has been
+  replaced with quadratic interpolation. This shouldn't cut off as much treble
+  in the sound as linear interpolation. Though it comes with a price:
+  The audio channel mixer requires slightly more CPU power, but it's still a
+  relatively fast mixer. If you listen closely to songs with a lot of treble,
+  you'll (hopefully) hear that they feel more life-like than before.
+  Please note that this makes a minor difference, don't expect a lot!
+- Fixed a bug where the mouse cursor could be stuck in busy mode (thus
+  blocking the program) when certain errors happened during loading/saving.
+- Saving an instrument now uses half the amount of RAM as before.
+
+Beta #130 - 14.01.2019 (updated 24.01.2019)
+- Don't enable SDL2 text input when it's not needed. Potentially removes
+  ~2ms spikes on every key press.
+- No need to initialize SDL2 timers when we don't use them anymore!
+>> 24.01.2019:
+- Fixed a bug in the help text rendering where spaces in the big font
+  would not be shown while scrolling
+  
+Beta #129 - 10.01.2019
+- Prevent doing 64-bit MULs if the scopes are inactive (rate calculation)
+- WaitVBL() function for scopes and video (when no vsync) has been changed to
+  include fractional precision for "next frame time" counter. Note that this
+  is a minor change and does not magically remove video stuttering.
+
+Beta #128 - 06.01.2019
+- If speed (ticks per row) is set to 0, reset it to the initial value when
+  pressing play.
+- Clamp BPM/speed when loading modules so that the values are not illegal
+- Some other minor fixes
+- Code cleanup
+
+Beta #127 - 02.01.2019
+- Remove overflown notes (> B-9) when loading modules
+- Remove overflown efx/notes when loading tracks/patterns
+- Removed some unneded logic in the pattern editor text routines
+- Code cleanup
+
+Beta #126 - 29.12.2018
+- Pattern row quantization (record) was broken in beta #125
+
+Beta #125 - 28.12.2018
+- Fixed an issue with sample data peaks while zooming in/out in Smp. Ed.
+- The playback timer is now counting BPM ticks from the replayer
+  instead of spawning/deleting a 1-sec SDL timer every time you
+  play a song.
+- Updated the "Keyboard" and "Problems/FAQ" help texts
+
+Beta #124 - 17.12.2018
+- The scrollbar in the MIDI input device list didn't work
+- Fixed some minor audio/video timer problems
+- More verbose error checking on program startup
+
+Beta #123 - 16.12.2018
+- Rewrote the Help screen routines to be exact to real FT2.
+  It now uses less RAM.
+- Some GUI decoration was missing in extended pattern editor mode
+- Code cleanup
+
+Beta #122 - 15.12.2018
+- Windows: Reverted back to SDL2.0.8 because of the keyboard
+  shutting itself off and on randomly with SDL2.0.9.
+  Really strange stuff... It doesn't happen in SDL2.0.8.
+- More bug fixes on sample hand editing (Smp. Ed.)
+
+Beta #121 - 09.12.2018
+- Completely rewrote how system requests (message boxes) work, which
+  simplifies its usage a ton under development.
+- Vsync now works properly in macOS Mojave again. How? Well, if you
+  compile with XCode 9 on High Sierra instead of XCode 10 on Mojave,
+  it just magically works!
+- Fixed a couple of bugs with the "Delete/Rename" modes in Disk Op.
+- Fixed some textbox routine bugs
+- Fixed a bug with loop points when using the Mix function in Sample Ed.
+- Fixed an off-by-one error in the y coordinate on sample hand-edit
+- Waveform drawing: Fixed a rounding error on the negative part of the
+  waveform while displaying a zoomed-out sample
+- .pat files were accidentally not listed in instrument mode in Disk Op.
+- Big code cleanup. Let me know if I made any new bugs, it's very possible!
+
+Beta #120 - 27.11.2018 (updated 04.12.2018)
+- Even more audio channel mixer optimizations
+>> 04.12.2018:
+- Changed some stuff in the help text
+- Don't shut off audio voices if you modified the loop points but they
+  remained at the same values as before.
+
+Beta #119 - 25.11.2018
+- Removed some unneeded logic in the audio channel mixer. Some mixer speed
+  improvement can maybe be seen from this on slow systems.
+  I was able to measure a speed improvement of 15% using a special test.
+
+Beta #118 - 24.11.2018
+- Turned some 64-bit calculations into 32-bit in the audio channel mixer
+  where 64-bit was not really needed.
+- Windows: Same-instance module opening should be faster now (e.g. if the
+  tracker is running and you double-click on an .XM in Windows)
+- Code cleanup
+
+Beta #117 - 23.11.2018
+- Windows: Fixed a critical bug where the program would hang on exit if it
+  didn't initialize properly (or if single-instancing). This was especially
+  noticable if you opened several modules associated with the clone through
+  f.ex. explorer or an internet browser. It would end up hogging the CPU.
+- Support loading .MODs with odd channel numbers (1,3,5..31)
+- .MOD: replen got set to 0 instead of 2 on empty samples during saving (oops)
+- Fixed crash when loading .STMs with empty patterns
+- Added more I/O error checking in the module loader
+- Tiny code cleanup
+
+Beta #116 - 16.11.2018
+- The MIDI input device list was showing wrong entries (from audio). Oops!
+- Fixed some possible thread race condition issues on close
+- Slightly changed the speed/depth of the MIDI modulation wheel (vibrato)
+- Tiny code cleanup
+
+Beta #115 - 15.11.2018 (updated 16.11.2018)
+- Fixed bugs with the song start/stop position buttons in the WAV recorder
+  screen.
+- Reset global volume to 64 when pressing "Stop", and when WAV recording is done
+- Updated the FAQ help text regarding not going to implement MIDI out
+>> 16.11.2018:
+- Reverted "About" screen back to FT2 style
+
+Beta #114 - 11.11.2018
+- Rewrote the .MOD saver to be almost exact to the one used in original FT2
+- The .MOD saver is now showing more warnings when things aren't compatible
+- Tiny code cleanup
+
+Beta #113 - 03.11.2018
+- Removed some unneeded logic in ft2_audio.c
+- Increased the audio/video sync queue length
+- Some small fixes to how the scopes are latching...
+- Binaries are now updated to use SDL 2.0.9
+
+Beta #112 - 29.10.2018 (updated 01.11.2018)
+- Scopes are now done with fixed-point arithmetics instead of floating-point.
+  Using doubles and floats for this was simply just not needed, and a waste.
+- Some small security fixes
+- Tiny code cleanup
+>> 01.11.2018:
+- Show beta version in "About" screen
+
+Beta #111 - 28.10.2018
+- Linear interpolation is now done with 16-bit fractional precision instead
+  of 15-bit.
+ 
+Beta #110 - 25.10.2018
+- Moved some things in the "Config->I/O Devices" screen so that the audio
+  device listboxes could be wider (fits more characters).
+- Don't show the "rescan" button in the "Config->I/O Devices" screen if the
+  current audio driver doesn't support it (DirectSound/WinMM on Windows).
+- Code cleanup
+
+Beta #109 - 11.10.2018
+- Note Eb (in flat notes mode) was wrongly displayed as Db
+
+Beta #108 - 07.10.2018 (updated 08.10.2018)
+- The song playback timer didn't tick accurately, it's fixed now
+>> 08.10.2018:
+- Code cleanup
+
+Beta #107 - 06.10.2018
+- Code cleanup (yes, I feel that this needs a new version and some testing ;-)
+
+Beta #106 - 29.09.2018
+- Fixed an issue in the audio/video syncing (noticable on low audio rates
+  and high audio buffer sizes).
+- The clone is now high-DPI compliant (Windows/macOS). This means sharp
+  pixels on UI DPI scaling higher than 100%. Also fixes heavy stuttering on
+  Macs with retina displays if vsync is off or monitor rate >60Hz.
+  
+Beta #105 - 29.09.2018
+- Fix: Track transposing would only transpose on track #1 instead of where
+  the pattern cursor is.
+
+Beta #104 - 27.09.2018
+- Fixed a Nibbles bug where parts of the tail would get stuck in the map :-)
+- Fixed a Nibbles bug where if player 1 got a highscore, parts of the config
+  settings would get trashed...
+- Player 2 input buffer in Nibbles wasn't cleared properly on stage load
+
+Beta #103 - 26.09.2018
+- Fixed an error in the audio/video sync queue clearing
+- Slightly more accurate audio/video syncing (hopefully!)
+- Normalization value for mixed samples was slightly off in 24-bit audio mode
+- Fixed some minor errors in some routines
+- Code cleanup
+
+Beta #102 - 24.09.2018
+- Fixed an error in the "samples to mix" limitation in the audio channel mixer.
+  This would not affect the sound, but it was buggy so it had to be fixed.
+
+Beta #101 - 23.09.2018 (updated)
+- Pingpong-loops now behave 100% the same as real FT2 on high notes and tight
+  loop points.
+- Faster "volume=0 optimization" for pingpong-loop samples
+>> update:
+- Resampling interpolation is now identical to real FT2
+- Fixed audible click on quick panning changes together with notes
+
+Beta #100 - 22.09.2018
+- Channel mixer has been rewritten yet again to match real FT2 even more.
+  This time it has yet another speed increase, especially for 32-bit CPUs.
+- Update the piano in instr. ed. during WAV recording
+
+Beta #99 - 19.09.2018
+- Forgot to remove some debug code from beta #98, which would make the clone
+  crash if an XM with more than 35 instruments was loaded. Sorry!
+
+Beta #98 - 19.09.2018
+- Add support for loading FT2.CFG files from FT2 versions below 2.06
+- "Nibbles" has been rewritten, and is now directly ported from the FT2 code
+- Soloing channels (left+right click on scope) now works exactly like FT2.
+  It was kinda buggy earlier.
+- Some modifications were done to the help texts
+- Some GUI elements have been slightly moved to match FT2
+- If a loaded XM contained a sample with both pingpong and normal loop set
+  (illegal) and it was 16-bit, it would get loaded wrongly.
+- Fixed a rare bug where the normal mouse cursor would look like the text edit
+  cursor (same colors).
+- More minor code cleanup
+  
+Beta #97 - 17.09.2018
+- Prevent doing a 64-bit DIV when setting voice rate if rate is zero
+  (this would actually happen quite often, which was very wasteful on 32-bit
+   CPUs)
+- Fixed unaligned 32-bit read/write in some routines (they are aligned now)
+- Code cleanup (__debugbreak stuff changed into one-liner MY_ASSERT)
+
+Beta #96 - 11.09.2018
+- Fixed a crash if effect 9xx was set to after a sample loop (oops)
+- Fixed a bug with loop on samples played with the "Waveform" button in smp. ed.
+
+Beta #95 - 10.09.2018
+- Fixed a crash in the audio channel mixer if channel rate got set to zero
+  (through f.ex. the 2xx replayer effect)
+- Song patterns now take up less memory (and empty ones are not allocated)
+- Show current song filename in the window title
+- Volume macros were not correctly saved to or loaded from FT2.CFG
+- Volume macros would return bogus values, fixed!
+- When trimming unused instruments, they would not be wiped 100% correctly.
+  Don't worry, unused instruments were still skipped during saving in older FT2
+  clone versions as well.
+- Fixed possible crash if program is spammed with drag'n'drop events in
+  unnatural ways (f.ex. if a user is holding down enter on a .xm file that is
+  associated with the FT2 clone).
+- The config loader/saver has been rewritten to not trash settings in FT2.CFG
+  that the clone is not using. This makes FT2.EXE for DOS happy.
+- Fixed some bugs in the instrument editor functions
+- Fixed a range bug with instrument remapping on block (marked pattern data)
+- Fixed a memory leak when drag'n'dropping a new song while current song was
+  unsaved, and you clicked "No" on the system request.
+- When saving a song that contains a looped sample, the data at the loopEnd+1
+  point would be messed up. Not a huge problem as this was after the loop end
+  point and would not be played, but it has been fixed now anyway.
+- Put the "By Triton Prod." GUI badge back in
+- The default scope style is now "Original"-mode (like real FT2)
+- Slightly decreased the mouse button delay time
+- Changed some GUI button repeat delays to be more FT2-accurate
+- Code cleanup
+
+Beta #94 - 05.09.2018 (updated 06.09.2018)
+- Audio channel mixer has been further optimized
+- Support sample loop lengths of 1 sample, like real FT2 (was minimum 2 before)
+- List WAV files in module mode in Disk Op. (and reject loading them as a song)
+- Refresh the Disk Op. directory after writing song to WAV
+>> 06.09.2018:
+- Small code cleanup to prevent compiler warnings
+- Some other minor fix
+
+Beta #93 - 01.09.2018
+- The mixer has been completely rewritten from being floating point to 32.32
+  fixed point. The speed increase should be noticable on older machines.
+  Now the biggest CPU-consuming task is the GPU pixelbuffer rendering. 
+- Fixed a possible crash from beta #92 on samples that has both loop and
+  ping-loop loop set at the same time. They are now fixed on load.
+
+Beta #92 - 31.08.2018
+- FIX: BPM was wrong after rendering a WAV using a frequency not equal to the
+  audio output frequency in the tracker.
+- The "vol=0" optimization was sadly making the sample position increase wrongly
+  over time, so I had to make it much slower to be accurate. The mixer is still
+  faster than in the FT2 clone from 07.08.2018. Sorry for all the errors lately!
+
+Beta #91 - 29.08.2018
+- The "vol=0" optimization had yet another error when combined with volume
+  ramping, fixed now!
+- Small code cleanup
+
+Beta #90 - 27.08.2018
+- You can now select what bitdepth to use in the "song to WAV" renderer screen
+- Set default "song to WAV" frequency to 44.1kHz
+- Don't change "song to WAV" freq. when changing audio output freq. in config
+- Fix: The playback timer could be off by one after rendering a song to WAV
+- Some minor code cleanup
+
+Beta #89 - 25.08.2018 (updated 25.08.2018)
+- Volume ramping optimization in the audio channel mixer, about ~6-10% speed
+  increase with the help of SSE.
+>> 25.08.2018:
+- Slightly lowered the time needed to render song to WAV
+
+Beta #88 - 19.08.2018
+- Fixed program freeze when trying to save a .MOD that has patterns with more
+  than 64 rows.
+- Applied licenses to the FT2 clone project
+
+Beta #87 - 16.08.2018
+- Note text rendering was broken when 10 or 12 channels were shown
+  (when using non-default pattern font).
+- Fixed a possible crash when sampling external audio
+- Prevent volume up/down/mute multimedia keys from stopping audio sampling
+- Code cleanup
+
+Beta #86 - 15.08.2018
+- Channel panning was broken in beta #84, embarassing. Fixed now!
+
+Beta #85 - 13.08.2018
+- Fixed an error in the "volume=0" audio channel mixer optimization
+
+Beta #84 - 12.08.2018
+- Added "volume=0" optimization to the audio channel mixer
+- Fixed a memory leak when loading 64-bit floating point WAV samples
+- When drag n' dropping a sample onto the tracker, the instrument switcher
+  (top right) could be drawn on top of other screens.
+- Code: Changed the variable name style for double/float variables
+
+Beta #83 - 07.08.2018
+- Some more scope thread race safety added
+
+Beta #82 - 02.08.2018
+- Windows: MIDI input was not working anymore, fixed
+
+Beta #81 - 28.07.2018
+- When loading a new song, old instrument names from the previous module
+  could get stuck (not cleared).
+
+Beta #80 - 25.07.2018
+- Linux/macOS: Support symbolic links in Disk Op.
+
+Beta #79 - 12.07.2018
+- Fixed possible crash after loading samples or modules (beta #78)
+
+Beta #78 - 11.07.2018
+- The linear interpolation routine was slightly incorrect to FT2 when the sample
+  is playing backwards (on ping-pong loops). Only noticable on VERY small
+  samples.
+- The "trim data after sample loop" function didn't correctly free up leftover
+  memory.
+- Fixed a stupid bug where the clone would scan for MIDI devices every frame
+- Sample data rendering (peak based) is now much faster by using SSE2.
+  It was pretty slow on huge samples earlier.
+- Module/sample/instr. saving is threaded to prevent stalling input/video thread
+- Module/instr. loading is threaded to prevent stalling input/video thread
+- You can now load samples in instrument load mode (loaded into smp. slot #0)
+- Added initial BPM and initial global volume handling for certain .STM files
+- File renaming wasn't done in proper unicode (for non-Windows build)
+- Sample/instr./pattern/track filenames weren't converted to unicode on save
+- Fixed alsa linking error in make-linux.sh on some systems
+- Added a new help section called "Known bugs"
+- A TON of code was changed, you'll probably see a new beta version very soon
+  because of new bugs I possibly made.
+
+Beta #77 - 01.07.2018
+- Fixed nordic characters not encoding to codepage 437 correctly on macOS
+
+Beta #76 - 30.06.2018
+- Fixed a potential crash with pattern marking in "pattern stretch" mode
+- Pattern marking was not clamped correctly on Add/Sub channels
+- Removed some unneeded code/data related to the pattern editor
+- Small code cleanup
+
+Beta #75 - 26.06.2018
+- BUGFIX: Instrument jamming would always jam at full volume regardless of
+  sample volume.
+
+Beta #74 - 19.06.2018
+- More CP437<->UTF-8 translation where needed
+
+Beta #73 - 17.06.2018 (updated 18.06.2018)
+- Fixed a crash in the audio/MIDI device listboxes if the strings had extended
+  ASCII characters in them. (e.g. crash when you entered Config screen)
+- Audio/MIDI device names are now converted to codepage 437 before display
+>> 18.06.2018:
+- Fixed some bugs with nordic characters in some text boxes
+- Fixed the black piano key graphics a little
+
+Beta #72 - 26.05.2018 (updated 28.05.2018)
+- Fixed bugs with sampling pos. line when pressing "Display", "Wave" or "Range"
+  in Smp. Ed. while a song is playing.
+>> 27.05.2018:
+- Fixed some errors in the help file
+- Changed the random algorithm used for 0.5-bit dither
+>> 28.05.2018:
+- Fixed some minor stuff in the code
+- The default config file table had some wrong values, fixed
+
+Beta #71 - 19.05.2018
+- Fixed lock-up when pressing "Display", "Wave" or "Range" in Smp. Ed.
+  One of those pesky bugs that didn't trigger in debug mode.
+- Don't put mouse pointer in center during start-up
+
+Beta #70 - 18.05.2018
+- Windows: Fixed an issue where certain missing DLLs were needed to make it run.
+  This was a problem with static linking for the rtmidi library.
+- The mouse cursor could still get stuck in fullscreen mode if scale factor = 1x
+- Fixed some incorrect colors on some GUI elements (disk op. text, envelopes..)
+- Pressing "Refresh" in Disk Op. now rescans drive list (Windows only)
+- More code cleanup and micro optimizations
+
+Beta #69 - 15.05.2018
+- Mouse cursor doesn't get stuck outside in fullscreen mode anymore
+- Mouse cursor is now properly centered when switching resolution
+- Fixed some pattern marking stuff
+- Fixed an error with displaying the sample length during sampling
+- Fixed a problem when song/inst./smp. names have zeroes in them
+
+Beta #68 - 13.05.2018
+- Made the clone look even more like FT2.08. Again, for nostalgy factor
+- Pressing "Refresh" in Disk Op. will now also scan for drive changes (Windows)
+- Some micro optimizations, guess I'm bored...
+
+Beta #67 - 11.05.2018
+- Fixed an issue where the sample playback pos. line could sometimes be at the
+  wrong place when samples are triggered (line is shown in Smp. Ed.).
+  PS: This can still happen, but very rarely now in comparison to before.
+  The reason it happens is because of thread race conditions.
+
+Beta #66 - 09.05.2018
+- "3xx direction" is cleared on "Play Song" (fixes crazy 3xx behavior sometimes)
+- Sample rate was slightly miscalculated when saving samples as WAV/IFF
+- Some minor changes to some graphics and text positions in UI (to match FT2.08)
+- More code cleanup
+
+Beta #65 - 05.05.2018
+- If you disabled "hex count", the row number would wrongly wrap around 0..98
+  instead of 0..99.
+- Fixed a bug where the pattern editor could display an invalid row if you
+  were on a row higher than the length of the pattern you're changing to.
+- Reverted a ton of GUI texts (and UI behaviors) back to that of FT2.08 to
+  keep the nostalgy factor higher. :D
+
+Beta #64 - 30.04.2018 (updated 01.05.2018)
+- The fonts are now exactly the same as original FT2, I reverted the changes I
+  made to them earlier. This means that ASCII art in sample/instrument texts
+  should be just like FT2.
+- Fixed a typo in the help texts
+>> 01.05.2018:
+- Code cleanup, hopefully didn't introduce new bugs
+- Small scope vol/delta delay fix
+
+Beta #63 - 25.04.2018
+- Illegal effect types in patterns are now sanitized on load, by zeroing both
+  effect type and parameter if the effect type is above 'Z' (36)
+- Some small fixes and changes in Nibbles
+- Fixed code signature for SDL2 framework on macOS / OS X
+
+Beta #62 - 20.04.2018
+- Fixed a (rare) bug where some tiny patterns could be wrongly loaded as 64 rows
+- Fixed a (rare) bug where some tiny patterns could be wrongly saved as 64 rows
+- Don't show a system request after .wav rendering
+- Don't set song position to 0 after .wav rendering
+- Some scope "thread race condition" fixing
+- Increased the number of stars visible in the About screen :)
+
+Beta #61 - 20.04.2018
+- Added AIFF sample load support (not AIFC; floating point and compressed)
+- Fixed crash when loading 24-bit .wav samples
+- Fixed a possible (but very unlikely) .wav sample load lock-up
+- Small speed-up for .wav loader
+
+Beta #60 - 13.04.2018 (updated 16.04.2018)
+- Changing "Edit step" would illegally draw its number in "extended patt. mode"
+- If a sample failed to load, the GUI would get stuck/unresponsive
+- The IFF sample loader had some bugs (some samples wouldn't load)
+- The pattern cursor would be wrongly placed in "extended patt mode." if
+  "Framework" was disabled.
+- Added basic "MIDI in" support
+- CTRL+X/CMD+X now doesn't "cut" in  "Sample editor", but closes all screens
+- Jamming samples right after loading them in macOS could freeze the program
+>> 15.04.2018:
+- Fixed a bug where you could only edit sample data by moving the mouse
+>> 16.04.2018:
+- Mouse wheel scrolling could sometimes bug out
+
+Beta #59 - 29.03.2018
+- Enabling "Extended pattern" mode while having Instr.Ed./Smp.Ed open would
+  mess up the GUI completely.
+- Using SHIFT+UP/DOWN to change the current instrument would mess up the
+  GUI if certain screens were shown.
+- If you held down a GUI element while a system request was triggered,
+  the element would be stuck in "down" position and trigger an event after
+  the system request was closed.
+- Some small security fixes, and some optimizations to the sample editor fx's
+- Selecting the output frequency of the WAV renderer is now easier!
+  
+Beta #58 - 27.03.2018
+- If you had set a custom mouse shape, a system request box would reset it
+- The pattern cursor routine could corrupt the GUI graphics sometimes
+- There was a bug with showing the "text edit" mouse shape during a sys req.
+- Some config specific bugs were fixed
+
+Beta #57 - 24.03.2018 (updated 25.03.2018)
+- Added a 64-bit Windows build
+- Optimization: Don't redraw inactive scopes per frame, only when they change
+- Removed an unneeded multiplication in the audio mixer for non-bidi-loop
+  samples.
+
+Beta #56 - 22.03.2018 (updated 23.03.2018)
+- Bugfix: Loading a module while in "extended pattern" mode would mess things up
+- Bugfix: Shift+insert (on pattern data) was VERY buggy! Could crash too
+- Bugfix: "Kill Song" during play made the pos ed. scrollbar size wrong
+- There was a bug with the instrument bank "swap" mode when scrolling through it
+- Fixed some bugs with cut/copy/paste on sample data
+- Rewrote older bullshit code to make the code a bit more understandable and 
+  faster, hopefully I didn't introduce new bugs now... Please let me know!
+>> 23.03.2018:
+- Don't redraw all piano keys per frame, instead redraw the ones that need
+  redrawing.
+- Properly get synced note from replayer while playing (for piano)
+  
+Beta #55 - 20.03.2018 (updated 21.03.2018)
+- Significantly reduced the CPU time needed to draw pattern data marking
+- Significantly reduced the CPU time needed to draw sample data marking
+- Some optimizations in how pattern data is drawn
+- Bugfix: Pattern cursor could disappear while disabling "show volume column"
+- Code cleanup
+>> 21.03.2018:
+- Some more small optimizations in the pattern data renderer
+- Optimized the "sampling position" line drawing in Smp. Ed.
+
+Beta #54 - 17.03.2018
+- Fixed a bug where the audio would get stuck in a loop when rendering to WAV
+- Mixer was rewritten to gain a (very) small performance increase
+- The "Very large" buffer size was added again (some people need it)
+- There was a problem updating the song position during WAV rendering
+
+Beta #53 - 16.03.2018
+- Replayer bugfix: Notes were incorrectly clamped, off-by-one error!
+- Bugfix: Fixed a ton of memory leaks
+- Finished the audio output/input device selector
+- Added audio sampling from audio input device (press "Sample" in Smp. Ed.)
+- Changed audio boost volumes from max -/+ 200% to 400% (in Smp. Ed.)
+  
+Beta #52 - 07.03.2018
+- Updated SDL2 from version 2.0.7 to 2.0.8
+- Nibbles optimization: draw changes, don't redraw the whole game area per frame
+- Optimization: Slightly faster clear (background) on pattern editor drawing
+
+Beta #51 - 27.02.2018 (updated 01.03.2018)
+- Even more bugs with sample editor marking/scrolling fixed
+>> 01.03.2018:
+- The EXE and SDL2.DLL are now UPX compressed
+- Changed some version info text in the EXE (win32)
+- Fixed a play/stop bug when passing non-modules to the EXE (through arguments)
+
+Beta #50 - 15.02.2018
+- Windows: Reduced the CPU usage a lot when hand-editing/scrolling BIG samples
+
+Beta #49 - 13.02.2018 (updated 14.02.2018)
+- Bugfix: "Copy Smp." in Smp. Ed. didn't work at all
+- Bugfix: "Paste Block" (ALT+F5) didn't work on a 1x1 size
+- Some small fixes in certain text routines
+- Micro optimizations to scrollbar and text routines
+>> 14.02.2018:
+- "Copy Smp." was still not working right, fixed! (for real this time)
+
+Beta #48 - 08.02.2018 (updated 11.02.2018)
+- Fixed a bug with channel muting when rendering to WAV
+>> 09.02.2018:
+- Fixed a bug with sample hand editing
+>> 11.02.2018:
+- Fixed some thread timers a bit (high performance counters)
+
+Beta #47 - 07.02.2018 (updated 08.02.2018)
+- Removed a lot of unneeded overhead in the KeyDown() routine
+- Window title is now updated only when it really needs to be
+- Fixed a bug with pressing Esc. during text edit in a system request dialog
+- Fixed a phase bug in Resampler (Smp. Ed.) - now it is FT2-exact
+- Fixed a bug where you couldn't hand edit sample data in the very right corner
+- Some small code cleanup and round/truncate fixes
+>> 21.01.2018:
+- Mac: Make Command+Q ask if you want to quit, instead of just quitting 
+ 
+Beta #46 - 04.02.2018
+- Bug from beta #44 fixed: mixer bug on triggering empty samples
+  (fixed "the notebook.xm" which is bundled with the program).
+
+Beta #45 - 30.01.2018
+- Bugfix: Reset text edit box scrolling/offset when done editing
+- Windows: Disable the problematic WASAPI audio driver in SDL2
+
+Beta #44 - 26.01.2018
+- Fixed a bug where you could re-trigger old voices by spamming keys
+  on empty samples. Nasty.
+- Changed two errors in the help data
+
+Beta #43 - 18.01.2018 (updated 21.01.2018)
+- Removed the IRC client (it was an experiment, was almost never used...)
+- Changed some GUI texts to match FT2.09a
+- The 'C' character in the small pattern font was edited to match FT2.09a's
+- Updated the help text (removed IRC section)
+- Changed the position of some GUI texts/objects that were slightly off
+>> 19.01.2018:
+- Improved the algorithm for the random routine used for 0.5 bit dither
+>> 21.01.2018:
+- Removed some scope debug code in inner loop
+- Micro-optimizations on scopes
+
+Beta #42 - 09.01.2018
+- Some Smp. Ed. bugs were fixed (loop, marking, rounding of positions etc)
+- Fixed: bug in the mixer caused audio to hiss after some samples (beta #41)
+- Updated "About" screen
+- Added two new nordic characters to main font (can't be used yet)
+
+Beta #41 - 08.01.2018 (attempt to fix audio click/pop issues)
+- Removed "Compatibility Mode" since it often caused problems
+- Added a config entry for "0.5 bit dither"
+- Changed interpolation back to linear (like original FT2, faster)
+- Made channel volume calculation FT2 exact (sightly lower resolution)
+- Tiny optimization in channel mixer
+- Updated the help text
+
+Beta #40 - 03.01.2018
+- Fixed a replayer mishap with auto-vibrato if sweep>0
+- Fixed a bug when zooming in all the way on a very long sample
+- Some micro optimizations to the IRC data parser
+
+Beta #39 - 19.12.2017 (updated 28.12.2017)
+- Re-ordered some buttons in the Disk Op. screen
+- Fixed: 16-bit samples >64kB did not convert properly when saving as .MOD
+- Fixed: Text marking went bananas if you loaded a new song while marking text
+- Forgot to hide two radiobuttons @ Config->Layout (could click them after exit)
+- Some minor change in a few text strings in system request dialogs
+- Made some "stereo -> mono" and ">16-bit -> 16-bit" routines faster
+>> 28.11.2017:
+- Changed some letters in the main font to be more nice (in my opinion)
+- New about screen
+- Removed the "Messages" and "Credits" entries from the Help screen
+- Renamed "16-bit (default)" to "16-bit integer" in Config -> Audio
+
+Beta #38 - 10.12.2017
+- Added text marking, with copy/paste/cut (mouse or keyboard, CTRL+A/X/C/V).
+  This might not be 100% bug free, please report any eventual problems.
+- Bugfix: The .MOD loader wouldn't load old 15 sample .MODs
+- Bugfix: "Conv W" in the sample editor was broken and would crash
+- Removed the "Stereo mixing" feature, and replaced it with "Compatibility mode"
+  (enabled by default). This mode can eliminate audio problems and make the
+  mixing faster.
+- Fixed a typo in the .wav renderer screen (32-bit -> 24-bit)
+- Updated some Help screen text
+- Added "problems.txt" to the release archive
+- Properly convert UTF-8 nordic characters to codepage 437 (for FT2)
+- Added CMD+A/X/C/V on macOS (instead of only CTRL+..)
+
+Beta #37 - 27.11.2017 (updated 28.11.2017)
+- Changed the resampling filter from linear to cubic. Linear interpolation
+  would make the sound more filtered/foggy on hi-fi samples.
+- Changed some of the help text in "How to use FT2"
+- Changed the "Triton" difficulty text in Nibbles to "Maniac" (FT2.09a)
+- Improved the safety of the scopes on very short loop points
+>> 28.11.2017:
+- On SIGTERM, de-minimize window and set focus while the "ask to save song"
+  dialog is open.
+  
+Beta #36 - 19.11.2017 (updated 23.11.2017)
+- Added mouse wheel scrolling support to more listboxes
+- Added a missing Nibbles cheat code (I won't tell how to trigger it ;-)
+- Minor changes to the layout in the Layout/Miscellaneous config screens
+- Added the "Glass" mouse pointer animation (and the ability to change to it)
+>> 20.11.2017:
+- Some bugs with mouse animation frames were fixed
+>> 23.11.2017:
+- Fixed: The Trim screen's "Smp. dat. after loop" checkbox could be toggled by
+  pressing below the actual text. Oops!
+  
+Beta #35 - 16.11.2017
+- Added the "Trim" screen (for trimming off unused stuff from the song)
+- Fixed a bug where you in some cases couldn't edit the note->smp table (piano)
+- Fixed a bug with the current row when decreasing the pattern length
+- Fixed a possible problem with the pattern mark colors @ user defined palette
+- XM saver bug fix: The "sample size" field was incorrectly set on instruments
+  with no samples. This was thankfully not a problem since most loaders would
+  check the "amount of samples" field and not read the sample header if it was
+  zero.
+
+Beta #34 - 01.11.2017 (updated 02.11.2017)
+- Forgot to change the current row during shrink/expand pattern (could bug out)
+- Fixed: CTRL+left/right would render numbers on top of other screens
+- Fixed: There was a problem with the current row after inserting in edit mode.
+  After inserting data and then pressing up/down, you'd get to the wrong pos.
+  This was a bug introduced in beta #33.
+- Fixed: ALT+ENTER didn't work during text editing
+>> 02.11.2017:
+- Properly update current row when pressing stop on a song. This fixes a bug
+  where stopping the song and then going up/down can sometimes skip or get
+  stuck for one or more rows.
+  
+Beta #33 - 29.10.2017
+- Updated from SDL 2.0.6 to 2.0.7
+- Fixed a bug where the mixer would render one tick with the old BPM right
+  after setting a new BPM (from pattern or GUI).
+- Fixed: The pattern editor displayer was always one tick behind the audio
+- Row quantization (on 1/16 mode) was completely broken (record mode)
+- Fixed a bug where jamming during play would trigger every command as arp (0xy)
+- Fixed a bug with "transpose notes on song" on MOD/STM/S3M
+- Fixed an off-by-one bug when increasing/decreasing patt len while playing
+- Fixed a bug with pattern editor update if pattern jumped on the first row
+  or had a pattern length of 1.
+- Fixed a possible crash when editing broken instrument envelopes
+- Fixed: 16 channel .MODs refused to load (very dumb problem)
+- Fixed a crash when saving a song with 16-bit samples as .MOD
+- Added a "Very small" (256) audio buffer size, and changed the sizes' names
+- Large portions of the replayer/audio code was rewritten to be protected
+  against thread race condition problems (for stability).
+  I do it the same way as FT2 now.
+- Now you can't hear the loop point change while moving the loop points live.
+  I had to remove it because it was very buggy, and very unsafe for the audio
+  thread! Original FT2 didn't have that feature anyways.
+- Some minor GUI drawing optimizations
+- Fixed a bug with displaying nickname changes on others in the IRC client
+  
+Beta #32 - 19.10.2017
+- If fullscreen on startup was enabled, the mouse speed would be wrong
+- Make Num Pad ENTER trigger some ENTER events
+- Fixed a bug with the IRC connect button when the connection was dropped
+
+Beta #31 - 19.10.2017
+- Added a small IRC client that connects to #protracker on IRCNet
+- Hide the text edit cursor if the window is not active
+- Changed the '^' character in the font to be '^' instead of the block thing
+- Added the missing '~ 'character to the font
+- Removed deprecated custom stricmp/strnicmp routines
+
+Beta #30 - 06.10.2017 (updated 12.10.2017)
+- Zero channel struct when loading a song
+- Piano visualizer now works like FT2 (note calculation/down test)
+>> 06.10.2017:
+- Also reset channel struct when rendering song to WAV
+>> 07.10.2017:
+- Mouse wheel scrolling was broken in extended pattern editor mode
+>> 08.10.2017:
+- Don't draw outline on channel number on scopes unless muted
+>> 12.10.2017:
+- Small bug fix & optimization on scopes in "lined mode"
+
+Beta #29 - 03.10.2017
+- Had to remove the 96kHz audio option as SDL2.0.6 hated it
+- Bug fix: The audio mode could be forced to 32-bit float
+- Changed "32-bit float" text to "24-bit float" (which is more correct)
+
+Beta #28 - 02.10.2017
+- Updated from SDL 2.0.5 to SDL 2.0.6
+- Removed some deprecated stuff from the FT2 FAQ help text
+
+Beta #27 - 29.09.2017
+- Fixed several bugs in the GUI when using the mouse
+- The right sample loop pin was rendered incorrectly when on top of the left one
+- Slightly increased the mouse down delay time for buttons (for repeating)
+
+Beta #26 - 28.09.2017
+- Fixed some bugs with the left/right sample data scrolling speed
+- Mouse wheel scroll is now handled based on what screen you are hovering over
+- You can now zoom in/out the sample data using the mouse wheel
+- Sample data was rendered twice when moving the sample data scroll thumb (oops)
+
+Beta #25 - 20.09.2017 (updated 27.09.2017)
+- Replayer fix: 2xx (pitch slide) accidentally shared the effect memory from 1xx
+- Fix: The audio mixer could underflow/overflow loops on very small loops
+- Security fix for the scopes...
+>> 21.09.2017:
+- Small fix on how voices/channels are stopped
+- macOS: Right command key on Mac keyboards now act as right ctrl (play song)
+>> 27.09.2017:
+- Minor code change for order of initializing things, and added small delay
+  after closing audio device (wait for thread).
+  
+Beta #24 - 14.09.2017 (updated 15.09.2017)
+- Windows only: Allow only one instance of the program when opening a song that
+  was associated with it.
+>> 15.09.2017:
+- Changed how the 60Hz sync routines work. Should be -slightly- more correct
+- Micro-optimization: Muted scopes are drawn when toggled, not in real-time
+
+Beta #23 - 13.09.2017
+- Scopes would be drawn on top of the WAV rendering box... Fixed.
+
+Beta #22 - 10.09.2017 (updated 12.09.2017)
+- Replayer bug fix: Panning envelopes had a new bug from beta #21 :-(
+- Set high thread priority on scope thread
+>> 12.09.2017:
+- Micro optimizations in scope drawing/handling
+- Changed "CD-Dump" button text to "Trim" (future feature)
+
+Beta #21 - 09.09.2017
+- Replayer bug fix: Quirky vol/pan envelopes didn't play back like in FT2
+- The "Add memory to sample" checkbox in the echo toolbox was misplaced in the
+  last beta version (#20).
+
+Beta #20 - 08.09.2017
+- Rewrote the scrollbar thumb calculation routine to be safe.
+  Related crashes should never happen now. I noticed that opening and exiting
+  "extended pattern mode" could still crash, so I had to rewrite it.
+- The delay time for certain buttons in the position editor were too short
+
+Beta #19 - 07.09.2017
+- Config screen changes:
+  1) Rearranged some stuff on the "miscellaneous" config screen
+  2) "Auto fit" now works correctly on 1440x900
+  3) Added a "do not show again" checkbox to fullscreen/vsync off warnings
+- Changed the intro message (bug reporting)
+
+Beta #18 - 30.08.2017
+- Pxy (panning slide) had major problems!
+- <0 (pan slide left 0 in volume column) now behaves like in FT2
+- Possible bidi loop mishap was fixed on the scopes
+- Upper resampling frequencies are no longer clamped to 534749Hz
+  This means that the underflow pattern on pitch slide abuse will sound
+  more like FT2.
+
+Beta #17 - 29.08.2017
+- Volume ramp bug fixes:
+  1) On new notes, don't apply vol/pan change ramping in addition to sample
+     trigger ramping.
+  2) Don't start a fade out voice if there was no data playing on that voice to
+     begin with.
+
+Beta #16 - 28.08.2017
+- Mixer now uses 32-bit float instead of 64-bit double. After a long discussion
+  with Saga_Musix, it turns out that it's not needed at all. This may give a
+  very small performance boost on slower systems.
+  I also set the floating point model to 'fast' instead of 'precise' in the
+  win32 build.
+
+Beta #15 - 25.08.2017
+- Fixed a bug where a scrollbar's thumb calculation could overflow and crash the
+  program when drawn. This could f.ex. be triggered by toggling extended pattern
+  editor mode while the song pos is near or at the end on a song with many
+  orders.
+- Windows build: The scopes/'sampling line' now run in an own thread instead of
+  the video thread. This was already done on the build for macOS.
+  This fixes some issues where the scopes and 'sampling line' could get out of
+  sync in some rare scenarios like f.ex. moving the window while a long sample
+  is playing. They might jitter more now if the OS is really busy with other
+  tasks, though...
+- Fixed a scope bug in 'lined mode' where the very first sample point would be
+  incorrect.
+  
+Beta #14 - 19.08.2017
+- Marking the end of the sample data with the mouse wouldn't always include the
+  very end of the sample.
+- The palette inverting on the sampling position line was wrong on the center
+  pixel.
+- Fixed a crash when trying to zoom in (or out) on the end part of a sample
+- Fixed garbage getting loaded at the end when reading the right channel or
+  combining the channels of a stereo WAV sample.
+- Fixed some minor bugs with the song-to-WAV renderer
+- Windows: Compiled the EXE with the floating-point model set to "fast". Tiny
+  speed boost, and no quality loss in the audio mixer.
+- The audio dither's random seed is now reset every time you press stop/play,
+  which also means that the dither pattern is the same every time you render the
+  song to a WAV. People may argue that this behavior is not ideal, but I believe
+  that rendering a byte-identical WAV is useful for comparing things.
+
+Beta #13 - 18.08.2017:
+- You can now put FT2.CFG in the program directory to prevent the program from
+  creating a configuration folder and file in the user's config directory.
+  It will be loaded, and this works like portable mode; handy if you want to
+  test the clone on computers without messing with the user directories in the
+  OS.
+
+Beta #12 - 17.08.2017:
+- Added a "filtering" mode in the config screen which makes the pixels filtered.
+  This will also make fullscreen mode stretch completely out.
+
+Beta #11 - 31.07.2017:
+- Fix song pos scrollbar thumb size when toggling extended pattern editor during
+  playback.
+
+Beta #10 - 30.07.2017:
+- Volume ramp had a dumb bug that I introduced long ago on pan/vol changes
+  combined with pitch slides.

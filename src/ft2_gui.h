@@ -1,5 +1,4 @@
-#ifndef __FT2_GUI_H
-#define __FT2_GUI_H
+#pragma once
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -48,19 +47,19 @@ enum
 
 	OBJECT_ID_NONE = -1,
 
-	OBJECT_NONE        = 0,
-	OBJECT_PUSHBUTTON  = 1,
+	OBJECT_NONE = 0,
+	OBJECT_PUSHBUTTON = 1,
 	OBJECT_RADIOBUTTON = 2,
-	OBJECT_CHECKBOX    = 3,
-	OBJECT_SCROLLBAR   = 4,
-	OBJECT_TEXTBOX     = 5,
+	OBJECT_CHECKBOX = 3,
+	OBJECT_SCROLLBAR = 4,
+	OBJECT_TEXTBOX = 5,
 	OBJECT_INSTRSWITCH = 6,
 	OBJECT_PATTERNMARK = 7,
-	OBJECT_DISKOPLIST  = 8,
-	OBJECT_SMPDATA     = 9,
-	OBJECT_PIANO       = 10,
-	OBJECT_INSVOLENV   = 11,
-	OBJECT_INSPANENV   = 12
+	OBJECT_DISKOPLIST = 8,
+	OBJECT_SMPDATA = 9,
+	OBJECT_PIANO = 10,
+	OBJECT_INSVOLENV = 11,
+	OBJECT_INSPANENV = 12
 };
 
 extern pushButton_t pushButtons[NUM_PUSHBUTTONS];
@@ -69,10 +68,13 @@ extern checkBox_t checkBoxes[NUM_CHECKBOXES];
 extern scrollBar_t scrollBars[NUM_SCROLLBARS];
 extern textBox_t textBoxes[NUM_TEXTBOXES];
 
-void unstuckAllGUIElements(void);
+void unstuckLastUsedGUIElement(void);
 bool setupGUI(void);
+
 void hLine(uint16_t x, uint16_t y, uint16_t width, uint8_t paletteIndex);
 void vLine(uint16_t x, uint16_t y, uint16_t h, uint8_t paletteIndex);
+void hLineDouble(uint16_t x, uint16_t y, uint16_t w, uint8_t paletteIndex);
+void vLineDouble(uint16_t x, uint16_t y, uint16_t h, uint8_t paletteIndex);
 void line(int16_t x1, int16_t x2, int16_t y1, int16_t y2, uint8_t paletteIndex);
 void clearRect(uint16_t xPos, uint16_t yPos, uint16_t w, uint16_t h);
 void fillRect(uint16_t xPos, uint16_t yPos, uint16_t w, uint16_t h, uint8_t paletteIndex);
@@ -110,5 +112,3 @@ void hideTopLeftScreen(void);
 void hideTopScreen(void);
 void showTopScreen(bool restoreScreens);
 void showBottomScreen(void);
-
-#endif

@@ -1,5 +1,4 @@
-#ifndef __FT2_PUSHBUTTONS_H
-#define __FT2_PUSHBUTTONS_H
+#pragma once
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -348,16 +347,16 @@ enum
 #define BUTTON_DOWN_DELAY 8
 
 // font #1/#2 special characters (used for buttons)
-#define ARROW_UP_STRING    "\x05"
-#define ARROW_DOWN_STRING  "\x03"
-#define ARROW_LEFT_STRING  "\x1E"
+#define ARROW_UP_STRING "\x05"
+#define ARROW_DOWN_STRING "\x03"
+#define ARROW_LEFT_STRING "\x1E"
 #define ARROW_RIGHT_STRING "\x1F"
-#define SMALL_1_STRING     "\x08"
-#define SMALL_2_STRING     "\x09"
-#define SMALL_3_STRING     "\x0A"
-#define SMALL_4_STRING     "\x0B"
-#define SMALL_5_STRING     "\x0C"
-#define SMALL_6_STRING     "\x0D"
+#define SMALL_1_STRING "\x08"
+#define SMALL_2_STRING "\x09"
+#define SMALL_3_STRING "\x0A"
+#define SMALL_4_STRING "\x0B"
+#define SMALL_5_STRING "\x0C"
+#define SMALL_6_STRING "\x0D"
 
 typedef struct pushButton_t // DO NOT TOUCH!
 {
@@ -378,5 +377,3 @@ void hidePushButton(uint16_t pushButtonID);
 void handlePushButtonsWhileMouseDown(void);
 bool testPushButtonMouseDown(void);
 int16_t testPushButtonMouseRelease(bool runCallback);
-
-#endif

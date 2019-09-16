@@ -1,5 +1,4 @@
-#ifndef __FT2_TRIM_H
-#define __FT2_TRIM_H
+#pragma once
 
 void drawTrimScreen(void);
 void hideTrimScreen(void);
@@ -16,5 +15,3 @@ void cbTrimUnusedSmpData(void);
 void cbTrimSmpsTo8Bit(void);
 void pbTrimCalc(void);
 void pbTrimDoTrim(void);
-
-#endif

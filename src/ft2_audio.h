@@ -1,5 +1,4 @@
-#ifndef __FT2_AUDIO_H
-#define __FT2_AUDIO_H
+#pragma once
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -113,5 +112,3 @@ extern pattSyncData_t *pattSyncEntry;
 extern chSyncData_t *chSyncEntry;
 
 extern volatile bool pattQueueReading, pattQueueClearing, chQueueReading, chQueueClearing;
-
-#endif

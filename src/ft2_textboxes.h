@@ -1,5 +1,4 @@
-#ifndef __FT2_TEXTBOXES_H
-#define __FT2_TEXTBOXES_H
+#pragma once
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -43,7 +42,7 @@ enum // TEXTBOXES
 enum
 {
 	TEXTBOX_NO_UPDATE = 0,
-	TEXTBOX_UPDATE    = 1
+	TEXTBOX_UPDATE = 1
 };
 
 typedef struct textBox_t // DO NOT TOUCH!
@@ -77,5 +76,3 @@ void handleTextEditControl(SDL_Keycode keycode);
 void handleTextEditInputChar(char textChar);
 void handleTextBoxWhileMouseDown(void);
 void freeTextBoxes(void);
-
-#endif

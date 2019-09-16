@@ -124,16 +124,16 @@ void drawPatternBorders(void)
 		fillRect(2, pattCoord->lowerRowsY - 9, 628, 9, PAL_DESKTOP);
 
 		// fill row number boxes
-		drawFramework(2,   pattCoord->upperRowsY, 25, pattCoord->upperRowsH, FRAMEWORK_TYPE2); // top left
+		drawFramework(2, pattCoord->upperRowsY, 25, pattCoord->upperRowsH, FRAMEWORK_TYPE2); // top left
 		drawFramework(604, pattCoord->upperRowsY, 26, pattCoord->upperRowsH, FRAMEWORK_TYPE2); // top right
-		drawFramework(2,   pattCoord->lowerRowsY, 25, pattCoord->lowerRowsH, FRAMEWORK_TYPE2); // bottom left
+		drawFramework(2, pattCoord->lowerRowsY, 25, pattCoord->lowerRowsH, FRAMEWORK_TYPE2); // bottom left
 		drawFramework(604, pattCoord->lowerRowsY, 26, pattCoord->lowerRowsH, FRAMEWORK_TYPE2); // bottom right
 
 		// draw channels
 		xOffs = 28;
 		for (uint8_t i = 0; i < chans; i++)
 		{
-			vLine(xOffs - 1, pattCoord->upperRowsY, pattCoord->upperRowsH,     PAL_DESKTOP);
+			vLine(xOffs - 1, pattCoord->upperRowsY, pattCoord->upperRowsH, PAL_DESKTOP);
 			vLine(xOffs - 1, pattCoord->lowerRowsY, pattCoord->lowerRowsH + 1, PAL_DESKTOP);
 
 			drawFramework(xOffs, pattCoord->upperRowsY, chanWidth, pattCoord->upperRowsH, FRAMEWORK_TYPE2); // top part
@@ -142,7 +142,7 @@ void drawPatternBorders(void)
 			xOffs += (chanWidth + 1);
 		}
 
-		vLine(xOffs - 1, pattCoord->upperRowsY, pattCoord->upperRowsH,     PAL_DESKTOP);
+		vLine(xOffs - 1, pattCoord->upperRowsY, pattCoord->upperRowsH, PAL_DESKTOP);
 		vLine(xOffs - 1, pattCoord->lowerRowsY, pattCoord->lowerRowsH + 1, PAL_DESKTOP);
 	}
 	else
@@ -185,7 +185,7 @@ static void writeCursor(void)
 
 	tabOffset = (config.ptnS3M * 32) + (columnModeTab[editor.ui.numChannelsShown - 1] * 8) + editor.cursor.object;
 
-	xPos  = pattCursorXTab[tabOffset];
+	xPos = pattCursorXTab[tabOffset];
 	width = pattCursorWTab[tabOffset];
 
 	assert(editor.ptnCursorY > 0 && xPos > 0 && width > 0);
@@ -213,16 +213,16 @@ static void writePatternBlockMark(int16_t currRow, uint16_t rowHeight, const pat
 	if (pattMark.markY1 > pattMark.markY2)
 		return;
 
-	startCh  = editor.ui.channelOffset;
-	endCh    = editor.ui.channelOffset + (editor.ui.numChannelsShown - 1);
+	startCh = editor.ui.channelOffset;
+	endCh = editor.ui.channelOffset + (editor.ui.numChannelsShown - 1);
 	startRow = currRow - pattCoord->numUpperRows;
-	endRow   = currRow + pattCoord->numLowerRows;
+	endRow = currRow + pattCoord->numLowerRows;
 
 	// test if pattern marking is outside of visible area (don't draw)
 	if (pattMark.markX1 > endCh || pattMark.markX2 < startCh || pattMark.markY1 > endRow || pattMark.markY2 < startRow)
 		return;
 
-	markCoord  = &markCoordTable[config.ptnUnpressed][editor.ui.pattChanScrollShown][editor.ui.extended];
+	markCoord = &markCoordTable[config.ptnUnpressed][editor.ui.pattChanScrollShown][editor.ui.extended];
 	pattYStart = markCoord->upperRowsY;
 
 	// X1
@@ -256,11 +256,11 @@ static void writePatternBlockMark(int16_t currRow, uint16_t rowHeight, const pat
 
 	// Y2
 
-	if ((pattMark.markY2 - 1) < currRow)
+	if (pattMark.markY2-1 < currRow)
 	{
 		y2 = pattYStart + ((pattMark.markY2 - startRow) * rowHeight);
 	}
-	else if ((pattMark.markY2 - 1) == currRow)
+	else if (pattMark.markY2-1 == currRow)
 	{
 		y2 = markCoord->midRowY + 11;
 	}
@@ -322,7 +322,7 @@ static void drawChannelNumbering(uint16_t yPos)
 		}
 		else
 		{
-			charOutOutlined(xPos,     yPos, PAL_MOUSEPT, '0' + (chNum / 10));
+			charOutOutlined(xPos, yPos, PAL_MOUSEPT, '0' + (chNum / 10));
 			charOutOutlined(xPos + 9, yPos, PAL_MOUSEPT, '0' + (chNum % 10));
 		}
 

@@ -22,52 +22,109 @@
 #include "ft2_trim.h"
 #include "ft2_video.h"
 
-void unstuckAllGUIElements(void) // releases all GUI elements if they were held down/used
+static void releaseMouseStates(void)
 {
-	uint16_t i;
-
-	if (mouse.lastUsedObjectID == OBJECT_ID_NONE)
-		return; // nothing to unstuck
-
 	mouse.lastUsedObjectID = OBJECT_ID_NONE;
 	mouse.lastUsedObjectType = OBJECT_NONE;
+	mouse.leftButtonPressed = false;
+	mouse.leftButtonReleased = false;
+	mouse.rightButtonPressed = false;
+	mouse.rightButtonReleased = false;
+	mouse.firstTimePressingButton = false;
+	mouse.buttonCounter = 0;
+	mouse.lastX = 0;
+	mouse.lastY = 0;
+	editor.ui.sampleDataOrLoopDrag = -1;
+	editor.ui.leftLoopPinMoving = false;
+	editor.ui.rightLoopPinMoving = false;
+}
 
-	for (i = 0; i < NUM_RADIOBUTTONS; i++)
+void unstuckLastUsedGUIElement(void)
+{
+	pushButton_t *p;
+	radioButton_t *r;
+	checkBox_t *c;
+	scrollBar_t *s;
+
+	if (mouse.lastUsedObjectID == OBJECT_ID_NONE)
 	{
-		if (radioButtons[i].state == RADIOBUTTON_PRESSED)
+		/* if last object ID is OBJECT_ID_NONE, check if we moved the
+		** sample data loop pins, and unstuck them if so */
+
+		if (editor.ui.leftLoopPinMoving)
 		{
-			radioButtons[i].state = RADIOBUTTON_UNCHECKED;
-			if (radioButtons[i].visible)
-				drawRadioButton(i);
+			setLeftLoopPinState(false);
+			editor.ui.leftLoopPinMoving = false;
 		}
-	}
 
-	for (i = 0; i < NUM_CHECKBOXES; i++)
-	{
-		if (checkBoxes[i].state == CHECKBOX_PRESSED)
+		if (editor.ui.rightLoopPinMoving)
 		{
-			checkBoxes[i].state = CHECKBOX_UNPRESSED;
-			if (checkBoxes[i].visible)
-				drawCheckBox(i);
+			setRightLoopPinState(false);
+			editor.ui.rightLoopPinMoving = false;
 		}
+
+		releaseMouseStates();
+		return;
 	}
 
-	for (i = 0; i < NUM_PUSHBUTTONS; i++)
+	switch (mouse.lastUsedObjectType)
 	{
-		if (pushButtons[i].state == PUSHBUTTON_PRESSED)
+		default: break;
+
+		case OBJECT_PUSHBUTTON:
 		{
-			pushButtons[i].state = PUSHBUTTON_UNPRESSED;
-			if (pushButtons[i].visible)
-				drawPushButton(i);
+			assert(mouse.lastUsedObjectID >= 0 && mouse.lastUsedObjectID < NUM_PUSHBUTTONS);
+			p = &pushButtons[mouse.lastUsedObjectID];
+			if (p->state == PUSHBUTTON_PRESSED)
+			{
+				p->state = PUSHBUTTON_UNPRESSED;
+				if (p->visible)
+					drawPushButton(mouse.lastUsedObjectID);
+			}
 		}
+		break;
+
+		case OBJECT_RADIOBUTTON:
+		{
+			assert(mouse.lastUsedObjectID >= 0 && mouse.lastUsedObjectID < NUM_RADIOBUTTONS);
+			r = &radioButtons[mouse.lastUsedObjectID];
+			if (r->state == RADIOBUTTON_PRESSED)
+			{
+				r->state = RADIOBUTTON_UNCHECKED;
+				if (r->visible)
+					drawRadioButton(mouse.lastUsedObjectID);
+			}
+		}
+		break;
+
+		case OBJECT_CHECKBOX:
+		{
+			assert(mouse.lastUsedObjectID >= 0 && mouse.lastUsedObjectID < NUM_CHECKBOXES);
+			c = &checkBoxes[mouse.lastUsedObjectID];
+			if (c->state == CHECKBOX_PRESSED)
+			{
+				c->state = CHECKBOX_UNPRESSED;
+				if (c->visible)
+					drawCheckBox(mouse.lastUsedObjectID);
+			}
+		}
+		break;
+
+		case OBJECT_SCROLLBAR:
+		{
+			assert(mouse.lastUsedObjectID >= 0 && mouse.lastUsedObjectID < NUM_SCROLLBARS);
+			s = &scrollBars[mouse.lastUsedObjectID];
+			if (s->state == SCROLLBAR_PRESSED)
+			{
+				s->state = SCROLLBAR_UNPRESSED;
+				if (s->visible)
+					drawScrollBar(mouse.lastUsedObjectID);
+			}
+		}
+		break;
 	}
 
-	for (i = 0; i < NUM_SCROLLBARS; i++)
-	{
-		scrollBars[i].state = SCROLLBAR_UNPRESSED;
-		if (scrollBars[i].visible)
-			drawScrollBar(i);
-	}
+	releaseMouseStates();
 }
 
 bool setupGUI(void)
@@ -81,8 +138,8 @@ bool setupGUI(void)
 
 	// all memory will be NULL-tested and free'd if we return false somewhere in this function
 
-	editor.tmpFilenameU = (UNICHAR *)(calloc(PATH_MAX + 1, sizeof (UNICHAR)));
-	editor.tmpInstrFilenameU = (UNICHAR *)(calloc(PATH_MAX + 1, sizeof (UNICHAR)));
+	editor.tmpFilenameU = (UNICHAR *)calloc(PATH_MAX + 1, sizeof (UNICHAR));
+	editor.tmpInstrFilenameU = (UNICHAR *)calloc(PATH_MAX + 1, sizeof (UNICHAR));
 
 	if (editor.tmpFilenameU == NULL || editor.tmpInstrFilenameU == NULL)
 		goto setupGUI_OOM;
@@ -156,6 +213,8 @@ bool setupGUI(void)
 		s->thumbW = 0;
 		s->thumbH = 0;
 	}
+
+	setPal16(palTable[config.cfg_StdPalNr], false);
 
 	seedAboutScreenRandom((uint32_t)time(NULL));
 	setupInitialTextBoxPointers();
@@ -749,6 +808,18 @@ void vLine(uint16_t x, uint16_t y, uint16_t h, uint8_t paletteIndex)
 		*dstPtr  = pixVal;
 		 dstPtr += SCREEN_W;
 	}
+}
+
+void hLineDouble(uint16_t x, uint16_t y, uint16_t w, uint8_t paletteIndex)
+{
+	hLine(x, y, w, paletteIndex);
+	hLine(x, y+1, w, paletteIndex);
+}
+
+void vLineDouble(uint16_t x, uint16_t y, uint16_t h, uint8_t paletteIndex)
+{
+	vLine(x, y, h, paletteIndex);
+	vLine(x+1, y, h, paletteIndex);
 }
 
 void line(int16_t x1, int16_t x2, int16_t y1, int16_t y2, uint8_t paletteIndex)

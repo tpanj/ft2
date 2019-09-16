@@ -90,6 +90,8 @@ checkBox_t checkBoxes[NUM_CHECKBOXES] =
 	{ 113,  79, 128, 12, cbConfigLineColors },
 	{ 113,  92, 126, 12, cbConfigChanNums },
 	{ 255,  14, 136, 12, cbConfigShowVolCol },
+	{ 255, 158, 113, 12, cbHardwareMouse },
+	// ---------------------------------
 	{ 212,   2, 142, 12, cbSampCutToBuff },
 	{ 212,  15, 145, 12, cbPattCutToBuff },
 	{ 212,  28, 153, 12, cbKillNotesAtStop },

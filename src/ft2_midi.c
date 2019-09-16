@@ -228,7 +228,7 @@ void recordMIDIEffect(uint8_t effTyp, uint8_t effData)
 	{
 		for (uint16_t i = 0; i < song.antChn; i++)
 		{
-			if (config.multiRecChn[i] && !editor.channelMute[i])
+			if (config.multiRecChn[i] && editor.chnMode[i])
 			{
 				if (!allocatePattern(nr))
 					return;
@@ -297,6 +297,9 @@ bool setMidiInputDeviceFromConfig(void)
 	uint32_t i, numDevices;
 	FILE *f;
 
+	if (midi.inputDeviceName != NULL)
+		free(midi.inputDeviceName);
+
 	numDevices = getNumMidiInDevices();
 	if (numDevices == 0)
 		goto setDefMidiInputDev;
@@ -320,9 +323,6 @@ bool setMidiInputDeviceFromConfig(void)
 	}
 
 	fclose(f);
-
-	if (midi.inputDeviceName != NULL)
-		free(midi.inputDeviceName);
 
 	// scan for device in list
 	midiInStr = NULL;

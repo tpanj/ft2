@@ -271,7 +271,11 @@ char *cp437ToUtf8(char *src)
 	inLen = srcLen;
 	outPtr = outBuf;
 
+#if defined(__NetBSD__) || defined(__sun) || defined(sun)
+	rc = iconv(cd, (const char **)&inPtr, &inLen, &outPtr, &outLen);
+#else
 	rc = iconv(cd, &inPtr, &inLen, &outPtr, &outLen);
+#endif
 	iconv(cd, NULL, NULL, &outPtr, &outLen); // flush
 	iconv_close(cd);
 
@@ -301,6 +305,8 @@ char *utf8ToCp437(char *src, bool removeIllegalChars)
 
 #ifdef __APPLE__
 	cd = iconv_open("437//TRANSLIT//IGNORE", "UTF-8-MAC");
+#elif defined(__NetBSD__) || defined(__sun) || defined(sun)
+	cd = iconv_open("437", "UTF-8");
 #else
 	cd = iconv_open("437//TRANSLIT//IGNORE", "UTF-8");
 #endif
@@ -317,7 +323,11 @@ char *utf8ToCp437(char *src, bool removeIllegalChars)
 	inLen = srcLen;
 	outPtr = outBuf;
 
+#if defined(__NetBSD__) || defined(__sun) || defined(sun)
+	rc = iconv(cd, (const char **)&inPtr, &inLen, &outPtr, &outLen);
+#else
 	rc = iconv(cd, &inPtr, &inLen, &outPtr, &outLen);
+#endif
 	iconv(cd, NULL, NULL, &outPtr, &outLen); // flush
 	iconv_close(cd);
 

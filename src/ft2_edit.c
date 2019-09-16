@@ -261,16 +261,16 @@ static bool testEditKeys(SDL_Scancode scancode, SDL_Keycode keycode)
 	return true;
 }
 
-// directly ported from the original FT2 code
-static void evaluateTimestamp(int16_t *songPos, int16_t *pattNr, int16_t *pattPos, int16_t *tick)
+// directly ported from the original FT2 code (fun fact: named EvulateTimeStamp() in the FT2 code)
+static void evaluateTimeStamp(int16_t *songPos, int16_t *pattNr, int16_t *pattPos, int16_t *tick)
 {
 	int16_t nr, t, p, r, sp, row;
 	uint16_t pattLen;
 
-	sp  = editor.songPos;
-	nr  = editor.editPattern;
+	sp = editor.songPos;
+	nr = editor.editPattern;
 	row = editor.pattPos;
-	t   = editor.tempo - editor.timer;
+	t = editor.tempo - editor.timer;
 
 	t = CLAMP(t, 0, editor.tempo - 1);
 
@@ -284,11 +284,11 @@ static void evaluateTimestamp(int16_t *songPos, int16_t *pattNr, int16_t *pattPo
 	{
 		if (config.recQuantRes >= 16)
 		{
-			t += ((editor.tempo >> 1) + 1);
+			t += (editor.tempo >> 1) + 1;
 		}
 		else
 		{
-			r = tickArr[config.recQuantRes - 1];
+			r = tickArr[config.recQuantRes-1];
 
 			p = row & (r - 1);
 			if (p < (r >> 1))
@@ -319,9 +319,9 @@ static void evaluateTimestamp(int16_t *songPos, int16_t *pattNr, int16_t *pattPo
 	}
 
 	*songPos = sp;
-	*pattNr  = nr;
+	*pattNr = nr;
 	*pattPos = row;
-	*tick    = t;
+	*tick = t;
 }
 
 // directly ported from the original FT2 code - what a mess, but it works...
@@ -338,7 +338,7 @@ void recordNote(uint8_t note, int8_t vol)
 	if (songPlaying)
 	{
 		// row quantization
-		evaluateTimestamp(&sp, &nr, &pattpos, &tick);
+		evaluateTimeStamp(&sp, &nr, &pattpos, &tick);
 	}
 	else
 	{
@@ -366,7 +366,7 @@ void recordNote(uint8_t note, int8_t vol)
 			time = 0x7FFFFFFF;
 			for (i = 0; i < song.antChn; i++)
 			{
-				if (!editor.channelMute[i] && config.multiRecChn[i] && editor.keyOffTime[i] < time && editor.keyOnTab[i] == 0)
+				if (editor.chnMode[i] && config.multiRecChn[i] && editor.keyOffTime[i] < time && editor.keyOnTab[i] == 0)
 				{
 					c = i;
 					time = editor.keyOffTime[i];
@@ -1791,8 +1791,8 @@ static int8_t getNoteVolume(tonTyp *note)
 	else
 		ev = -1;
 
-	if (note->instr != 0)
-		nv = (int8_t)instr[note->instr].samp[0].vol;
+	if (note->instr != 0 && instr[note->instr] != NULL)
+		nv = (int8_t)instr[note->instr]->samp[0].vol;
 	else
 		nv = -1;
 

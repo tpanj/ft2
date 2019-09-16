@@ -122,7 +122,7 @@ int16_t okBox(int16_t typ, char *headline, char *text)
 {
 #define PUSHBUTTON_W 80
 
-	int16_t returnVal;
+	int16_t returnVal, oldLastUsedObjectID, oldLastUsedObjectType;
 	uint16_t x, y, i, tlen, hlen, wlen, tx, knp, headlineX, textX;
 	const uint16_t mid = SCREEN_W / 2;
 	SDL_Event inputEvent;
@@ -146,8 +146,10 @@ int16_t okBox(int16_t typ, char *headline, char *text)
 	SDL_EventState(SDL_DROPFILE, SDL_DISABLE);
 
 	editor.ui.sysReqShown = true;
-	unstuckAllGUIElements();
 	mouseAnimOff();
+
+	oldLastUsedObjectID = mouse.lastUsedObjectID;
+	oldLastUsedObjectType = mouse.lastUsedObjectType;
 
 	// count number of buttons
 	knp = 0;
@@ -245,6 +247,7 @@ int16_t okBox(int16_t typ, char *headline, char *text)
 				{
 					returnVal = 1;
 					editor.ui.sysReqShown = false;
+					keyb.ignoreCurrKeyUp = true; // don't handle key up event for any keys that were pressed
 				}
 
 				for (i = 0; i < knp; i++)
@@ -253,6 +256,7 @@ int16_t okBox(int16_t typ, char *headline, char *text)
 					{
 						returnVal = i + 1;
 						editor.ui.sysReqShown = false;
+						keyb.ignoreCurrKeyUp = true; // don't handle key up event for any keys that were pressed
 						break;
 					}
 				}
@@ -277,7 +281,7 @@ int16_t okBox(int16_t typ, char *headline, char *text)
 				if (mouseButtonDownLogic(inputEvent.button.button))
 				{
 					if (testPushButtonMouseDown()) continue;
-					if (testCheckBoxMouseDown())   continue;
+					if (testCheckBoxMouseDown()) continue;
 				}
 			}
 
@@ -311,8 +315,9 @@ int16_t okBox(int16_t typ, char *headline, char *text)
 	if (typ >= 6 && typ <= 7)
 		hideCheckBox(0);
 
-	mouse.lastUsedObjectID = OBJECT_ID_NONE;
-	mouse.lastUsedObjectType = OBJECT_NONE;
+	mouse.lastUsedObjectID = oldLastUsedObjectID;
+	mouse.lastUsedObjectType = oldLastUsedObjectType;
+	unstuckLastUsedGUIElement();
 
 	showBottomScreen();
 
@@ -330,7 +335,7 @@ int16_t inputBox(int16_t typ, char *headline, char *edText, uint16_t maxStrLen)
 #define TEXTBOX_W 250
 
 	char *inputText;
-	int16_t returnVal;
+	int16_t returnVal, oldLastUsedObjectID, oldLastUsedObjectType;
 	uint16_t y, wlen, tx, knp, headlineX, i;
 	const uint16_t mid = SCREEN_W / 2;
 	SDL_Event inputEvent;
@@ -345,6 +350,9 @@ int16_t inputBox(int16_t typ, char *headline, char *edText, uint16_t maxStrLen)
 
 	if (editor.ui.sysReqShown)
 		return 0;
+
+	oldLastUsedObjectID = mouse.lastUsedObjectID;
+	oldLastUsedObjectType = mouse.lastUsedObjectType;
 
 	t = &textBoxes[0];
 
@@ -376,7 +384,6 @@ int16_t inputBox(int16_t typ, char *headline, char *edText, uint16_t maxStrLen)
 	SDL_EventState(SDL_DROPFILE, SDL_DISABLE);
 
 	editor.ui.sysReqShown = true;
-	unstuckAllGUIElements();
 	mouseAnimOff();
 
 	wlen = textWidth(headline);
@@ -480,6 +487,7 @@ int16_t inputBox(int16_t typ, char *headline, char *edText, uint16_t maxStrLen)
 				{
 					returnVal = 1;
 					editor.ui.sysReqShown = false;
+					keyb.ignoreCurrKeyUp = true; // don't handle key up event for any keys that were pressed
 				}
 
 				if (editor.editTextFlag)
@@ -494,6 +502,7 @@ int16_t inputBox(int16_t typ, char *headline, char *edText, uint16_t maxStrLen)
 						{
 							returnVal = i + 1;
 							editor.ui.sysReqShown = false;
+							keyb.ignoreCurrKeyUp = true; // don't handle key up event for any keys that were pressed
 							break;
 						}
 					}
@@ -507,7 +516,7 @@ int16_t inputBox(int16_t typ, char *headline, char *edText, uint16_t maxStrLen)
 					if (returnVal > 0)
 						editor.ui.sysReqShown = false;
 
-					mouse.lastUsedObjectID   = OBJECT_ID_NONE;
+					mouse.lastUsedObjectID = OBJECT_ID_NONE;
 					mouse.lastUsedObjectType = OBJECT_NONE;
 				}
 			}
@@ -553,8 +562,9 @@ int16_t inputBox(int16_t typ, char *headline, char *edText, uint16_t maxStrLen)
 
 	free(t->renderBuf);
 
-	mouse.lastUsedObjectID = OBJECT_ID_NONE;
-	mouse.lastUsedObjectType = OBJECT_NONE;
+	mouse.lastUsedObjectID = oldLastUsedObjectID;
+	mouse.lastUsedObjectType = oldLastUsedObjectType;
+	unstuckLastUsedGUIElement();
 
 	showBottomScreen();
 

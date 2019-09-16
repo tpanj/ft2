@@ -45,9 +45,6 @@ static void osxSetDirToProgramDirFromArgs(char **argv);
 static void disableWasapi(void);
 #endif
 
-#ifdef __MINGW32__
-#undef main
-#endif
 int main(int argc, char *argv[])
 {
 #if defined _WIN32 || defined __APPLE__
@@ -78,7 +75,7 @@ int main(int argc, char *argv[])
 		showErrorMsgBox("SDL2.dll is not the expected version, the program will terminate.\n\n" \
 		                "Loaded dll version: %d.%d.%d\n" \
 		                "Required (compiled with) version: %d.%d.%d\n\n" \
-		                "The needed SDL2.dll is located in the .zip from 16-bits.org/ft2.php.\n",
+		                "The needed SDL2.dll is located in the .zip from 16-bits.org/ft2.php\n",
 		                sdlVer.major, sdlVer.minor, sdlVer.patch,
 		                SDL_MAJOR_VERSION, SDL_MINOR_VERSION, SDL_PATCHLEVEL);
 #else
@@ -112,7 +109,7 @@ int main(int argc, char *argv[])
 	** (even if you don't use it) or else weird things happen like random stutters, keyboard (rarely) being
 	** reinitialized in Windows and what not.
 	** Ref.: https://bugzilla.libsdl.org/show_bug.cgi?id=4391 */
-#if defined _WIN32 && (SDL_PATCHLEVEL == 9)
+#if defined _WIN32 && SDL_PATCHLEVEL == 9
 	if (SDL_Init(SDL_INIT_AUDIO | SDL_INIT_VIDEO | SDL_INIT_JOYSTICK) != 0)
 #else
 	if (SDL_Init(SDL_INIT_AUDIO | SDL_INIT_VIDEO) != 0)
@@ -121,6 +118,8 @@ int main(int argc, char *argv[])
 		showErrorMsgBox("Couldn't initialize SDL:\n%s", SDL_GetError());
 		return 1;
 	}
+
+	createSDL2Cursors();
 
 	/* Text input is started by default in SDL2, turn it off to remove ~2ms spikes per key press.
 	** We manuallay start it again when a text edit box is activated, and stop it when done.
@@ -308,6 +307,7 @@ static void cleanUpAndExit(void) // never call this inside the main loop!
 	freeMidiInputDeviceList();
 	windUpFTHelp();
 	freeTextBoxes();
+	freeSDL2Cursors();
 
 	if (midi.inputDeviceName != NULL)
 	{
@@ -397,7 +397,7 @@ static void setupPerfFreq(void)
 	dFrac *= UINT32_MAX + 1.0;
 	if (dFrac > (double)UINT32_MAX)
 		dFrac = (double)UINT32_MAX;
-	double2int32_round(video.vblankTimeLenFrac, dFrac);
+	video.vblankTimeLenFrac = (uint32_t)round(dFrac);
 }
 
 #ifdef _WIN32

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.7)
 
-project(ft2-clone VERSION 0.1.60)
+project(ft2-clone VERSION 0.1.68)
 
 set(SDL_SHARED_ENABLED_BY_DEFAULT OFF)
 add_subdirectory(include/SDL2 EXCLUDE_FROM_ALL)

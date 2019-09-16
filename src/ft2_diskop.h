@@ -1,5 +1,4 @@
-#ifndef __FT2_DISKOP_H
-#define __FT2_DISKOP_H
+#pragma once
 
 #include <stdint.h>
 #include "ft2_unicode.h"
@@ -8,24 +7,24 @@
 
 enum
 {
-	DISKOP_ITEM_MODULE  = 0,
-	DISKOP_ITEM_INSTR   = 1,
-	DISKOP_ITEM_SAMPLE  = 2,
+	DISKOP_ITEM_MODULE = 0,
+	DISKOP_ITEM_INSTR = 1,
+	DISKOP_ITEM_SAMPLE = 2,
 	DISKOP_ITEM_PATTERN = 3,
-	DISKOP_ITEM_TRACK   = 4,
+	DISKOP_ITEM_TRACK = 4,
 
-	MOD_SAVE_MODE_MOD   = 0,
-	MOD_SAVE_MODE_XM    = 1,
-	MOD_SAVE_MODE_WAV   = 2,
-	SMP_SAVE_MODE_RAW   = 0,
-	SMP_SAVE_MODE_IFF   = 1,
-	SMP_SAVE_MODE_WAV   = 2
+	MOD_SAVE_MODE_MOD = 0,
+	MOD_SAVE_MODE_XM = 1,
+	MOD_SAVE_MODE_WAV = 2,
+	SMP_SAVE_MODE_RAW = 0,
+	SMP_SAVE_MODE_IFF = 1,
+	SMP_SAVE_MODE_WAV = 2
 };
 
 int32_t getFileSize(UNICHAR *fileName);
 uint8_t getDiskOpItem(void);
 void updateCurrSongFilename(void); // for window title
-char *getCurrSongFilename(void);   // for window title
+char *getCurrSongFilename(void); // for window title
 char *getDiskOpFilename(void);
 const UNICHAR *getDiskOpCurPath(void);
 const UNICHAR *getDiskOpModPath(void);
@@ -82,5 +81,3 @@ void rbDiskOpSmpSaveRaw(void);
 void rbDiskOpSmpSaveIff(void);
 void trimEntryName(char *name, bool isDir);
 bool fileExistsAnsi(char *str);
-
-#endif

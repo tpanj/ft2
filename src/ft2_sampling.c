@@ -21,18 +21,21 @@ static int16_t displayBuffer1[SAMPLING_BUFFER_SIZE * 2], displayBuffer2[SAMPLING
 static int32_t bytesSampled, samplingBufferBytes;
 static volatile int32_t currSampleLen;
 static SDL_AudioDeviceID recordDev;
-static sampleTyp *nextSmp;
+static int16_t rightChSmpSlot = -1;
 
 static void SDLCALL samplingCallback(void *userdata, Uint8 *stream, int len)
 {
 	int8_t *newPtr;
+	sampleTyp *s;
 
 	(void)userdata;
 
-	if (currSmp == NULL || len < 0 || len > samplingBufferBytes)
+	if (instr[editor.curInstr] == NULL || len < 0 || len > samplingBufferBytes)
 		return;
 
-	newPtr = (int8_t *)realloc(currSmp->pek, currSmp->len + len);
+	s = &instr[editor.curInstr]->samp[editor.curSmp];
+
+	newPtr = (int8_t *)realloc(s->pek, s->len + len);
 	if (newPtr == NULL)
 	{
 		drawSamplingBufferFlag = false;
@@ -40,13 +43,13 @@ static void SDLCALL samplingCallback(void *userdata, Uint8 *stream, int len)
 		return;
 	}
 
-	currSmp->pek = newPtr;
-	memcpy(&currSmp->pek[currSmp->len], stream, len);
+	s->pek = newPtr;
+	memcpy(&s->pek[s->len], stream, len);
 
-	currSmp->len += len;
-	if (currSmp->len > MAX_SAMPLE_LEN) // length overflow
+	s->len += len;
+	if (s->len > MAX_SAMPLE_LEN) // length overflow
 	{
-		currSmp->len -= len;
+		s->len -= len;
 		noMoreRoomFlag = true;
 		return;
 	}
@@ -56,10 +59,10 @@ static void SDLCALL samplingCallback(void *userdata, Uint8 *stream, int len)
 	{
 		bytesSampled -= samplingBufferBytes;
 
-		currSampleLen = currSmp->len - samplingBufferBytes;
+		currSampleLen = s->len - samplingBufferBytes;
 
 		// fill display buffer
-		memcpy(currWriteBuf, &currSmp->pek[currSampleLen], samplingBufferBytes);
+		memcpy(currWriteBuf, &s->pek[currSampleLen], samplingBufferBytes);
 
 		// swap write buffer (double-buffering)
 		if (currWriteBuf == displayBuffer1)
@@ -76,6 +79,7 @@ void stopSampling(void)
 	int8_t *newPtr;
 	int16_t *dst16, *src16;
 	int32_t i, len;
+	sampleTyp *currSmp, *nextSmp;
 
 	resumeAudio();
 	mouseAnimOff();
@@ -83,12 +87,20 @@ void stopSampling(void)
 	SDL_CloseAudioDevice(recordDev);
 	editor.samplingAudioFlag = false;
 
+	currSmp = NULL;
+	nextSmp = NULL;
+
+	if (instr[editor.curInstr] != NULL)
+		currSmp = &instr[editor.curInstr]->samp[editor.curSmp];
+
 	if (sampleInStereo)
 	{
 		// read right channel data
 		
-		if (currSmp->pek != NULL)
+		if (currSmp->pek != NULL && rightChSmpSlot != -1)
 		{
+			nextSmp = &instr[editor.curInstr]->samp[rightChSmpSlot];
+
 			nextSmp->pek = (int8_t *)malloc((currSmp->len / 2) + LOOP_FIX_LEN);
 			if (nextSmp->pek != NULL)
 			{
@@ -103,7 +115,7 @@ void stopSampling(void)
 			}
 			else
 			{
-				freeSample(nextSmp);
+				freeSample(editor.curInstr, rightChSmpSlot);
 			}
 
 			currSmp->len /= 2;
@@ -126,7 +138,7 @@ void stopSampling(void)
 	}
 	else
 	{
-		freeSample(currSmp);
+		freeSample(editor.curInstr, editor.curSmp);
 	}
 
 	updateSampleEditorSample();
@@ -236,25 +248,25 @@ static void drawSamplingPreview(void)
 		const uint16_t centerL = SAMPLE_AREA_Y_CENTER - (SAMPLE_AREA_HEIGHT / 4);
 		const uint16_t centerR = SAMPLE_AREA_Y_CENTER + (SAMPLE_AREA_HEIGHT / 4);
 
-		centerPtrL = &video.frameBuffer[centerL * SCREEN_W];
-		centerPtrR = &video.frameBuffer[centerR * SCREEN_W];
+		centerPtrL = &video.frameBuffer[centerL*SCREEN_W];
+		centerPtrR = &video.frameBuffer[centerR*SCREEN_W];
 
 		for (x = 0; x < SAMPLE_AREA_WIDTH; x++)
 		{
 			smpIdx = scrPos2SmpBufPos(x);
-			smpNum = scrPos2SmpBufPos(x + 1) - smpIdx;
+			smpNum = scrPos2SmpBufPos(x+1) - smpIdx;
 
 			if (smpIdx+smpNum >= SAMPLING_BUFFER_SIZE)
 				smpNum = SAMPLING_BUFFER_SIZE - smpIdx;
 
-			// left samples
+			// left channel samples
 			smpAbs = getDispBuffPeakLeft(&readBuf[(smpIdx * 2) + 0], smpNum);
 			if (smpAbs == 0)
 				centerPtrL[x] = pixVal;
 			else
 				vLine(x, centerL - smpAbs, (smpAbs * 2) + 1, PAL_PATTEXT);
 
-			// right samples
+			// right channel samples
 			smpAbs = getDispBuffPeakRight(&readBuf[(smpIdx * 2) + 1], smpNum);
 			if (smpAbs == 0)
 				centerPtrR[x] = pixVal;
@@ -327,10 +339,11 @@ void startSampling(void)
 	int16_t result;
 
 #if SDL_PATCHLEVEL < 5
-	okBox(2, "System message", "The program needs to be compiled with SDL 2.0.5 or later to support audio sampling.");
+	okBox(2, "System message", "This program needs to be compiled with SDL 2.0.5 or later to support audio sampling.");
 	return;
 #else
 	SDL_AudioSpec want, have;
+	sampleTyp *s, *nextSmp;
 
 	if (editor.samplingAudioFlag || editor.curInstr == 0)
 		return;
@@ -343,8 +356,6 @@ void startSampling(void)
 	samplingBufferBytes = sampleInStereo ? (SAMPLING_BUFFER_SIZE * 4) : (SAMPLING_BUFFER_SIZE * 2);
 
 	mouseAnimOn();
-
-	currSmp = &instr[editor.curInstr].samp[editor.curSmp];
 
 	memset(&want, 0, sizeof (SDL_AudioSpec));
 	want.freq = SAMPLING_FREQUENCY;
@@ -363,34 +374,39 @@ void startSampling(void)
 
 	pauseAudio();
 
+	if (instr[editor.curInstr] == NULL && !allocateInstr(editor.curInstr))
+	{
+		resumeAudio();
+		okBox(0, "System message", "Not enough memory!");
+		return;
+	}
+
+	s = &instr[editor.curInstr]->samp[editor.curSmp];
+
 	// wipe current sample and prepare it
-	freeSample(currSmp);
+	freeSample(editor.curInstr, editor.curSmp);
+	s->typ |= 16; // we always sample in 16-bit
 
-	currSmp->typ |= 16; // we always sample in 16-bit
-	currSmp->vol = 64;
-	currSmp->pan = 128;
-
-	tuneSample(currSmp, have.freq); // tune sample (relTone/finetune) to the sampling frequency we obtained
+	tuneSample(s, have.freq); // tune sample (relTone/finetune) to the sampling frequency we obtained
 
 	if (sampleInStereo)
 	{
-		strcpy(currSmp->name, "Left sample");
-		currSmp->pan = 0;
+		strcpy(s->name, "Left sample");
+		s->pan = 0;
 
-		if (editor.curSmp+1 < 0xF)
-			nextSmp = &instr[editor.curInstr].samp[editor.curSmp+1];
+		if (editor.curSmp+1 < MAX_SMP_PER_INST)
+			rightChSmpSlot = editor.curSmp+1;
 		else
-			nextSmp = NULL;
+			rightChSmpSlot = -1;
 
-		if (nextSmp != NULL)
+		if (rightChSmpSlot != -1)
 		{
 			// wipe current sample and prepare it
-			freeSample(nextSmp);
+			freeSample(editor.curInstr, rightChSmpSlot);
+			nextSmp = &instr[editor.curInstr]->samp[rightChSmpSlot];
 
 			strcpy(nextSmp->name, "Right sample");
-
 			nextSmp->typ |= 16; // we always sample in 16-bit
-			nextSmp->vol = 64;
 			nextSmp->pan = 255;
 
 			tuneSample(nextSmp, have.freq); // tune sample (relTone/finetune) to the sampling frequency we obtained
@@ -398,12 +414,11 @@ void startSampling(void)
 	}
 	else
 	{
-		strcpy(currSmp->name, "Mono-mixed sample");
+		strcpy(s->name, "Mono-mixed sample");
 	}
 
 	updateSampleEditorSample();
 	updateSampleEditor();
-
 	setSongModifiedFlag();
 
 	currWriteBuf = displayBuffer1;

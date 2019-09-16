@@ -1,5 +1,4 @@
-#ifndef __FT2_MIDI_H
-#define __FT2_MIDI_H
+#pragma once
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -33,5 +32,3 @@ void scrollMidiInputDevListDown(void);
 void sbMidiInputSetPos(uint32_t pos);
 bool testMidiInputDeviceListMouseDown(void);
 int32_t SDLCALL initMidiFunc(void *ptr);
-
-#endif

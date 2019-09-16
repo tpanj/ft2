@@ -1,5 +1,4 @@
-#ifndef __FT2_SCROLLBARS_H
-#define __FT2_SCROLLBARS_H
+#pragma once
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -57,12 +56,12 @@ enum // SCROLLBARS
 
 enum
 {
-	SCROLLBAR_UNPRESSED    = 0,
-	SCROLLBAR_PRESSED      = 1,
-	SCROLLBAR_HORIZONTAL   = 0,
-	SCROLLBAR_VERTICAL     = 1,
+	SCROLLBAR_UNPRESSED = 0,
+	SCROLLBAR_PRESSED = 1,
+	SCROLLBAR_HORIZONTAL = 0,
+	SCROLLBAR_VERTICAL = 1,
 	SCROLLBAR_THUMB_NOFLAT = 0,
-	SCROLLBAR_THUMB_FLAT   = 1
+	SCROLLBAR_THUMB_FLAT = 1
 };
 
 typedef struct scrollBar_t // DO NOT TOUCH!
@@ -82,6 +81,8 @@ void showScrollBar(uint16_t scrollBarID);
 void hideScrollBar(uint16_t scrollBarID);
 void scrollBarScrollUp(uint16_t scrollBarID, uint32_t amount);
 void scrollBarScrollDown(uint16_t scrollBarID, uint32_t amount);
+void scrollBarScrollLeft(uint16_t scrollBarID, uint32_t amount);
+void scrollBarScrollRight(uint16_t scrollBarID, uint32_t amount);
 void setScrollBarPos(uint16_t scrollBarID, uint32_t pos, bool triggerCallBack);
 uint32_t getScrollBarPos(uint16_t scrollBarID);
 void setScrollBarEnd(uint16_t scrollBarID, uint32_t end);
@@ -89,7 +90,4 @@ void setScrollBarPageLength(uint16_t scrollBarID, uint32_t pageLength);
 bool testScrollBarMouseDown(void);
 void testScrollBarMouseRelease(void);
 void handleScrollBarsWhileMouseDown(void);
-void updateLoopPinPalette(void);
 void initializeScrollBars(void);
-
-#endif

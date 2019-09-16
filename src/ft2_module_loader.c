@@ -117,14 +117,13 @@ songS3MHeaderTyp;
 static volatile uint8_t loadedFormat;
 static volatile bool stereoSamplesWarn, linearFreqTable, musicIsLoading, moduleLoaded, moduleFailedToLoad;
 static uint8_t oldPlayMode, pattBuff[12288];
-static const uint8_t st2TempoFactor[16] = { 140, 50, 25, 15, 10, 7, 6, 4, 3, 3, 2, 2, 2, 2, 1, 1 };
 static const uint8_t stmEff[16] = { 0, 0, 11, 0, 10, 2, 1, 3, 4, 7, 0, 5 ,6, 0, 0, 0 };
 static SDL_Thread *thread;
 
 // these temporarily read to, then copied to real struct if load was OK (should not need to be volatile'd)
 static int16_t pattLensTmp[MAX_PATTERNS];
 static tonTyp *pattTmp[MAX_PATTERNS];
-static instrTyp instrTmp[1 + MAX_INST];
+static instrTyp *instrTmp[1 + MAX_INST];
 static songTyp songTmp;
 
 static void setupLoadedModule(void);
@@ -135,11 +134,33 @@ static bool loadInstrSample(FILE *f, uint16_t i);
 void unpackPatt(uint8_t *dst, uint16_t inn, uint16_t len, uint8_t antChn);
 static bool tmpPatternEmpty(uint16_t nr);
 static bool loadPatterns(FILE *f, uint16_t antPtn);
-static void setDefEnvelopesTmp(uint16_t nr);
 
 // ft2_replayer.c
 extern const char modSig[32][5];
-extern const uint16_t amigaPeriod[12 * 8];
+extern const uint16_t amigaPeriod[12*8];
+
+static bool allocateTmpInstr(int16_t nr)
+{
+	instrTyp *p;
+
+	if (instrTmp[nr] != NULL)
+		return false; // already allocated
+
+	p = (instrTyp *)malloc(sizeof (instrTyp));
+	if (p == NULL)
+		return false;
+
+	memset(p, 0, sizeof (instrTyp));
+
+	for (int8_t i = 0; i < 16; i++) // set standard sample pan/vol
+	{
+		p->samp[i].pan = 128;
+		p->samp[i].vol = 64;
+	}
+
+	instrTmp[nr] = p;
+	return true;
+}
 
 static bool loadMusicMOD(FILE *f, uint32_t fileLength)
 {
@@ -163,7 +184,7 @@ static bool loadMusicMOD(FILE *f, uint32_t fileLength)
 	fread(bytes, 1, 1, f);
 	rewind(f);
 	
-	// check if the file is an .it module (Impulse Tracker)
+	// since .mod is the last format tested, check if the file is an .it module (Impulse Tracker)
 	if (!memcmp(ID, "IMPM", 4) && bytes[0] == 0)
 	{
 		okBoxThreadSafe(0, "System message", "Error: Impulse Tracker modules are not supported!");
@@ -190,8 +211,8 @@ static bool loadMusicMOD(FILE *f, uint32_t fileLength)
 	}
 
 	modIsFEST = false;
-	modIsNT   = false;
-	modIsUST  = false;
+	modIsNT = false;
+	modIsUST = false;
 
 	if (!strncmp(h_MOD31.sig, "N.T.", 4))
 	{
@@ -201,7 +222,7 @@ static bool loadMusicMOD(FILE *f, uint32_t fileLength)
 	else if (!strncmp(h_MOD31.sig, "FEST", 4) || !strncmp(h_MOD31.sig, "M&K!", 4))
 	{
 		modIsFEST = true;
-		modIsNT   = true;
+		modIsNT = true;
 		j = 4;
 	}
 	else if (!strncmp(h_MOD31.sig, "M!K!", 4) || !strncmp(h_MOD31.sig, "M.K.", 4) || !strncmp(h_MOD31.sig, "FLT4", 4))
@@ -326,10 +347,6 @@ static bool loadMusicMOD(FILE *f, uint32_t fileLength)
 	if (songTmp.len < 255)
 		memset(&songTmp.songTab[songTmp.len], 0, 256 - songTmp.len);
 
-	// sets the standard envelopes + pan + vol on temp instruments
-	for (i = 1; i <= MAX_INST; i++)
-		setDefEnvelopesTmp(i);
-
 	for (a = 0; a <= b; a++)
 	{
 		pattTmp[a] = (tonTyp *)calloc(64 * MAX_VOICES, sizeof (tonTyp));
@@ -450,83 +467,90 @@ static bool loadMusicMOD(FILE *f, uint32_t fileLength)
 
 	for (a = 0; a < ai; a++)
 	{
-		memset(instrTmp[1+a].samp, 0, sizeof (sampleTyp));
-		if (h_MOD31.instr[a].len > 0)
+		if (h_MOD31.instr[a].len == 0)
+			continue;
+
+		if (!allocateTmpInstr(1 + a))
 		{
-			s = &instrTmp[1+a].samp[0];
+			okBoxThreadSafe(0, "System message", "Not enough memory!");
+			goto modLoadError;
+		}
 
-			s->len = 2 * SWAP16(h_MOD31.instr[a].len);
+		setNoEnvelope(instrTmp[1 + a]);
 
-			s->pek = (int8_t *)malloc(s->len + LOOP_FIX_LEN);
-			if (s->pek == NULL)
-			{
-				okBoxThreadSafe(0, "System message", "Not enough memory!");
-				goto modLoadError;
-			}
+		s = &instrTmp[1+a]->samp[0];
 
-			memcpy(s->name, songTmp.instrName[1 + a], 22);
+		s->len = 2 * SWAP16(h_MOD31.instr[a].len);
 
-			if (modIsFEST)
-				h_MOD31.instr[a].fine = (32 - (h_MOD31.instr[a].fine & 0x1F)) >> 1;
+		s->pek = (int8_t *)malloc(s->len + LOOP_FIX_LEN);
+		if (s->pek == NULL)
+		{
+			okBoxThreadSafe(0, "System message", "Not enough memory!");
+			goto modLoadError;
+		}
 
-			if (!modIsUST)
-				s->fine = 8 * ((2 * ((h_MOD31.instr[a].fine & 0x0F) ^ 8)) - 16);
-			else
-				s->fine = 0;
+		memcpy(s->name, songTmp.instrName[1+a], 22);
 
-			s->pan = 128;
+		if (modIsFEST)
+			h_MOD31.instr[a].fine = (32 - (h_MOD31.instr[a].fine & 0x1F)) >> 1;
 
-			s->vol = h_MOD31.instr[a].vol;
-			if (s->vol > 64) s->vol = 64;
+		if (!modIsUST)
+			s->fine = 8 * ((2 * ((h_MOD31.instr[a].fine & 0x0F) ^ 8)) - 16);
+		else
+			s->fine = 0;
 
-			s->repS = 2 * SWAP16(h_MOD31.instr[a].repS);
+		s->pan = 128;
 
-			if (modIsUST)
-				s->repS /= 2;
+		s->vol = h_MOD31.instr[a].vol;
+		if (s->vol > 64) s->vol = 64;
 
-			s->repL = 2 * SWAP16(h_MOD31.instr[a].repL);
+		s->repS = 2 * SWAP16(h_MOD31.instr[a].repS);
 
-			if (s->repL <= 2)
+		if (modIsUST)
+			s->repS /= 2;
+
+		s->repL = 2 * SWAP16(h_MOD31.instr[a].repL);
+
+		if (s->repL <= 2)
+		{
+			s->repS = 0;
+			s->repL = 0;
+		}
+
+		if (s->repS+s->repL > s->len)
+		{
+			if (s->repS >= s->len)
 			{
 				s->repS = 0;
 				s->repL = 0;
 			}
-
-			if (s->repS+s->repL > s->len)
-			{
-				if (s->repS >= s->len)
-				{
-					s->repS = 0;
-					s->repL = 0;
-				}
-				else
-				{
-					s->repL = s->len - s->repS;
-				}
-			}
-
-			if (s->repL > 2)
-				s->typ = 1;
-			else
-				s->typ = 0;
-
-			if (modIsUST && (s->repS > 2 && s->repS < s->len))
-			{
-				s->len -= s->repS;
-				fseek(f, s->repS, SEEK_CUR);
-				s->repS = 0;
-			}
-
-			if (fread(s->pek, s->len, 1, f) == 1)
-			{
-				fixSample(s);
-			}
 			else
 			{
-				free(s->pek);
-				s->pek = NULL;
-				s->len = 0;
+				s->repL = s->len - s->repS;
 			}
+		}
+
+		if (s->repL > 2)
+			s->typ = 1;
+		else
+			s->typ = 0;
+
+		if (modIsUST && (s->repS > 2 && s->repS < s->len))
+		{
+			s->len -= s->repS;
+			fseek(f, s->repS, SEEK_CUR);
+			s->repS = 0;
+		}
+
+		if (fread(s->pek, s->len, 1, f) == 1)
+		{
+			fixSample(s);
+		}
+		else
+		{
+			free(s->pek);
+			s->pek = NULL;
+			s->len = 0;
 		}
 	}
 
@@ -549,10 +573,9 @@ static bool loadMusicMOD(FILE *f, uint32_t fileLength)
 
 		songTmp.repS = 0;
 	}
-	else
+	else if (songTmp.repS >= songTmp.len)
 	{
-		if (songTmp.repS >= songTmp.len)
-			songTmp.repS = 0;
+		songTmp.repS = 0;
 	}
 
 	fclose(f);
@@ -569,22 +592,16 @@ modLoadError:
 	return false;
 }
 
-// taken with permission from the OpenMPT project (and slightly modified)
-static uint16_t stmTempoToBPM(uint8_t tempo)
+static uint8_t stmTempoToBPM(uint8_t tempo) // ported from original ST2.3 replayer code
 {
-	uint16_t bpm;
-	static const uint32_t st2MixingRate = 23863; // highest possible setting in ST2
-	int32_t samplesPerTick;
+	const uint8_t slowdowns[16] = { 140, 50, 25, 15, 10, 7, 6, 4, 3, 3, 2, 2, 2, 2, 1, 1 };
+	uint32_t bpm;
+	uint16_t hz = 50;
 
-	// this underflows at tempo 06...0F, and the resulting tick lengths depend on the mixing rate
-	samplesPerTick = st2MixingRate / (49 - ((st2TempoFactor[tempo >> 4] * (tempo & 0x0F)) / 16));
+	hz -= ((slowdowns[tempo >> 4] * (tempo & 15)) >> 4); // can and will underflow
 
-	// simulate unsigned 16-bit overflow
-	if (samplesPerTick <= 0)
-		samplesPerTick += 65536;
-
-	bpm = (uint16_t)round(st2MixingRate / (samplesPerTick / 2.5));
-	return CLAMP(bpm, 32, 255);
+	bpm = (uint32_t)round(hz * 2.5);
+	return (uint8_t)CLAMP(bpm, 32, 255); // result can be slightly off, but close enough...
 }
 
 static bool loadMusicSTM(FILE *f, uint32_t fileLength)
@@ -653,10 +670,6 @@ static bool loadMusicSTM(FILE *f, uint32_t fileLength)
 
 	if (h_STM.verMinor > 10)
 		songTmp.globVol = MIN(h_STM.vol, 64);
-
-	// sets the standard envelopes + pan + vol on temp instruments
-	for (i = 1; i <= MAX_INST; i++)
-		setDefEnvelopesTmp(i);
 
 	ap = h_STM.ap;
 	for (i = 0; i < ap; i++)
@@ -784,7 +797,10 @@ static bool loadMusicSTM(FILE *f, uint32_t fileLength)
 
 		if (h_STM.instr[i].len != 0 && h_STM.instr[i].reserved1 != 0)
 		{
-			s = &instrTmp[1+i].samp[0];
+			allocateTmpInstr(1 + i);
+			setNoEnvelope(instrTmp[i]);
+
+			s = &instrTmp[1+i]->samp[0];
 
 			s->pek = (int8_t *)malloc(h_STM.instr[i].len + LOOP_FIX_LEN);
 			if (s->pek == NULL)
@@ -860,7 +876,7 @@ static bool loadMusicSTM(FILE *f, uint32_t fileLength)
 				{
 					if (ton->instr != 0 && ton->instr <= ai)
 					{
-						s = &instrTmp[ton->instr].samp[0];
+						s = &instrTmp[ton->instr]->samp[0];
 						len = s->len;
 
 						tmp8 = 0;
@@ -1053,10 +1069,6 @@ static bool loadMusicS3M(FILE *f, uint32_t dataLength)
 		okBoxThreadSafe(0, "System message", "General I/O error during loading! Is the file in use?");
 		goto s3mLoadError;
 	}
-
-	// sets the standard envelopes + pan + vol on temp instruments
-	for (i = 1; i <= MAX_INST; i++)
-		setDefEnvelopesTmp(i);
 
 	// *** PATTERNS ***
 
@@ -1378,8 +1390,6 @@ static bool loadMusicS3M(FILE *f, uint32_t dataLength)
 	memcpy(ptnOfs, ha, 512);
 	for (i = 0; i < ai; i++)
 	{
-		s = &instrTmp[1+i].samp[0];
-
 		fseek(f, ptnOfs[i] << 4, SEEK_SET);
 
 		if (fread(&h_S3MInstr, 1, sizeof (h_S3MInstr), f) != sizeof (h_S3MInstr))
@@ -1414,6 +1424,15 @@ static bool loadMusicS3M(FILE *f, uint32_t dataLength)
 			}
 			else if (h_S3MInstr.memSeg > 0 && h_S3MInstr.len > 0)
 			{
+				if (!allocateTmpInstr(1 + i))
+				{
+					okBoxThreadSafe(0, "System message", "Not enough memory!");
+					goto s3mLoadError;
+				}
+
+				setNoEnvelope(instrTmp[1 + i]);
+				s = &instrTmp[1+i]->samp[0];
+
 				len = h_S3MInstr.len;
 
 				if ((h_S3MInstr.flags & 2) != 0) // stereo
@@ -1550,7 +1569,7 @@ static bool loadMusicS3M(FILE *f, uint32_t dataLength)
 				{
 					if (pattTon->instr != 0 && pattTon->instr <= ai)
 					{
-						s = &instrTmp[pattTon->instr].samp[0];
+						s = &instrTmp[pattTon->instr]->samp[0];
 
 						len = s->len;
 
@@ -1720,10 +1739,6 @@ static int32_t SDLCALL loadMusicThread(void *ptr)
 	else
 		memcpy(songTmp.songTab, h.songTab, songTmp.len);
 
-	// sets the standard envelopes + pan + vol on temp instruments
-	for (i = 1; i <= MAX_INST; i++)
-		setDefEnvelopesTmp(i);
-
 	if (songTmp.ver < 0x0104)
 	{
 		// old FT2 format
@@ -1864,16 +1879,25 @@ static void freeTmpModule(void)
 	for (i = 0; i < MAX_PATTERNS; i++)
 	{
 		if (pattTmp[i] != NULL)
+		{
 			free(pattTmp[i]);
+			pattTmp[i] = NULL;
+		}
 	}
 
 	// free all samples
-	for (i = 0; i < (1 + MAX_INST); i++)
+	for (i = 1; i <= MAX_INST; i++)
 	{
-		for (uint8_t j = 0; j < MAX_SMP_PER_INST; j++)
+		if (instrTmp[i] != NULL)
 		{
-			if (instrTmp[i].samp[j].pek != NULL)
-				free(instrTmp[i].samp[j].pek);
+			for (uint8_t j = 0; j < MAX_SMP_PER_INST; j++)
+			{
+				if (instrTmp[i]->samp[j].pek != NULL)
+					free(instrTmp[i]->samp[j].pek);
+			}
+
+			free(instrTmp[i]);
+			instrTmp[i] = NULL;
 		}
 	}
 }
@@ -1923,36 +1947,39 @@ static bool loadInstrHeader(FILE *f, uint16_t i)
 	{
 		if (i <= MAX_INST)
 		{
+			if (!allocateTmpInstr(i))
+				return false;
+
 			// sanitize stuff for malicious instruments
 			ih.midiProgram = CLAMP(ih.midiProgram, 0, 127);
-			ih.midiBend    = CLAMP(ih.midiBend,    0,  36);
+			ih.midiBend = CLAMP(ih.midiBend, 0, 36);
 
 			if (ih.midiChannel > 15) ih.midiChannel = 15;
-			if (ih.mute     !=    1) ih.mute        = 0;
-			if (ih.midiOn   !=    1) ih.midiOn      = 0;
-			if (ih.vibDepth >  0x0F) ih.vibDepth    = 0x0F;
-			if (ih.vibRate  >  0x3F) ih.vibRate     = 0x3F;
-			if (ih.vibTyp   >     3) ih.vibTyp      = 0;
+			if (ih.mute != 1) ih.mute = 0;
+			if (ih.midiOn != 1) ih.midiOn = 0;
+			if (ih.vibDepth > 0x0F) ih.vibDepth = 0x0F;
+			if (ih.vibRate > 0x3F) ih.vibRate = 0x3F;
+			if (ih.vibTyp > 3) ih.vibTyp = 0;
 
 			for (j = 0; j < 96; j++)
 			{
-				if (ih.ta[j] > 0x0F)
-					ih.ta[j] = 0x0F;
+				if (ih.ta[j] > 15)
+					ih.ta[j] = 15;
 			}
 			// ----------------------------------------
 
 			// copy over final instrument data from temp buffer
-			memcpy(&instrTmp[i], ih.ta, INSTR_SIZE);
-			instrTmp[i].antSamp = ih.antSamp;
+			memcpy(instrTmp[i], ih.ta, INSTR_SIZE);
+			instrTmp[i]->antSamp = ih.antSamp;
 
-			if (instrTmp[i].envVPAnt > 12) instrTmp[i].envVPAnt = 12;
-			if (instrTmp[i].envVRepS > 11) instrTmp[i].envVRepS = 11;
-			if (instrTmp[i].envVRepE > 11) instrTmp[i].envVRepE = 11;
-			if (instrTmp[i].envVSust > 11) instrTmp[i].envVSust = 11;
-			if (instrTmp[i].envPPAnt > 12) instrTmp[i].envPPAnt = 12;
-			if (instrTmp[i].envPRepS > 11) instrTmp[i].envPRepS = 11;
-			if (instrTmp[i].envPRepE > 11) instrTmp[i].envPRepE = 11;
-			if (instrTmp[i].envPSust > 11) instrTmp[i].envPSust = 11;
+			if (instrTmp[i]->envVPAnt > 12) instrTmp[i]->envVPAnt = 12;
+			if (instrTmp[i]->envVRepS > 11) instrTmp[i]->envVRepS = 11;
+			if (instrTmp[i]->envVRepE > 11) instrTmp[i]->envVRepE = 11;
+			if (instrTmp[i]->envVSust > 11) instrTmp[i]->envVSust = 11;
+			if (instrTmp[i]->envPPAnt > 12) instrTmp[i]->envPPAnt = 12;
+			if (instrTmp[i]->envPRepS > 11) instrTmp[i]->envPRepS = 11;
+			if (instrTmp[i]->envPRepE > 11) instrTmp[i]->envPRepE = 11;
+			if (instrTmp[i]->envPSust > 11) instrTmp[i]->envPSust = 11;
 		}
 
 		if (fread(ih.samp, ih.antSamp * sizeof (sampleHeaderTyp), 1, f) != 1)
@@ -1962,9 +1989,8 @@ static bool loadInstrHeader(FILE *f, uint16_t i)
 		{
 			for (j = 0; j < ih.antSamp; j++)
 			{
-				s = &instrTmp[i].samp[j];
+				s = &instrTmp[i]->samp[j];
 				memcpy(s, &ih.samp[j], 12+4+24);
-
 				// s->pek is set up later
 
 				// trim off spaces at end of name
@@ -2004,13 +2030,13 @@ static bool loadInstrSample(FILE *f, uint16_t i)
 	int32_t l, bytesToSkip;
 	sampleTyp *s;
 
-	if (i > MAX_INST)
+	if (i > MAX_INST || instrTmp[i] == NULL)
 		return true; // yes, let's just pretend they got loaded
 
-	k = instrTmp[i].antSamp;
+	k = instrTmp[i]->antSamp;
 	for (j = 0; j < k; j++)
 	{
-		s = &instrTmp[i].samp[j];
+		s = &instrTmp[i]->samp[j];
 
 		// if a sample has both forward loop and pingpong loop set, make it pingpong loop only (FT2 behavior)
 		if ((s->typ & 3) == 3)
@@ -2117,14 +2143,14 @@ void unpackPatt(uint8_t *dst, uint16_t inn, uint16_t len, uint8_t antChn)
 			}
 
 			// if note is overflowing (>97), remove it
-			if (*(dst - 5) > 97)
-				*(dst - 5) = 0;
+			if (*(dst-5) > 97)
+				*(dst-5) = 0;
 
 			// non-FT2 security fix: if effect is above 35 (Z), clear effect and parameter
-			if (*(dst - 2) > 35)
+			if (*(dst-2) > 35)
 			{
-				*(dst - 2) = 0;
-				*(dst - 1) = 0;
+				*(dst-2) = 0;
+				*(dst-1) = 0;
 			}
 
 			srcIdx += sizeof (tonTyp);
@@ -2261,72 +2287,15 @@ pattCorrupt:
 	return false;
 }
 
-static void setDefEnvelopesTmp(uint16_t nr)
-{
-	instrTyp *ins;
-
-	ins = &instrTmp[nr];
-
-	ins->fadeOut  = defConfig->stdFadeOut[0];
-	ins->envVSust = (uint8_t)defConfig->stdVolEnvSust[0];
-	ins->envVRepS = (uint8_t)defConfig->stdVolEnvRepS[0];
-	ins->envVRepE = (uint8_t)defConfig->stdVolEnvRepE[0];
-	ins->envVPAnt = (uint8_t)defConfig->stdVolEnvAnt[0];
-	ins->envVTyp  = (uint8_t)defConfig->stdVolEnvTyp[0];
-	ins->vibRate  = (uint8_t)defConfig->stdVibRate[0];
-	ins->vibDepth = (uint8_t)defConfig->stdVibDepth[0];
-	ins->vibSweep = (uint8_t)defConfig->stdVibSweep[0];
-	ins->vibTyp   = (uint8_t)defConfig->stdVibTyp[0];
-
-	memcpy(ins->envVP, defConfig->stdEnvP[0][0], sizeof (int16_t) * 12 * 2);
-
-	ins->envPPAnt = (uint8_t)defConfig->stdPanEnvAnt[0];
-	ins->envPSust = (uint8_t)defConfig->stdPanEnvSust[0];
-	ins->envPRepS = (uint8_t)defConfig->stdPanEnvRepS[0];
-	ins->envPRepE = (uint8_t)defConfig->stdPanEnvRepE[0];
-	ins->envPTyp  = (uint8_t)defConfig->stdPanEnvTyp[0];
-
-	memcpy(ins->envPP, defConfig->stdEnvP[0][1], sizeof (int16_t) * 12 * 2);
-
-	for (uint8_t j = 0; j < MAX_SMP_PER_INST; j++)
-	{
-		ins->samp[j].vol = 64;
-		ins->samp[j].pan = 128;
-	}
-}
-
-// converts zeroes to spaces in a string, up until the last zero found
-static void fixZeroesInString(char *str, uint32_t maxLength)
-{
-	int32_t i;
-
-	for (i = maxLength-1; i >= 0; i--)
-	{
-		if (str[i] != '\0')
-			break;
-	}
-
-	// convert zeroes to spaces
-	if (i > 0)
-	{
-		for (int32_t j = 0; j < i; j++)
-		{
-			if (str[j] == '\0')
-				str[j] = ' ';
-		}
-	}
-}
-
 // called from input/video thread after the module was done loading
 static void setupLoadedModule(void)
 {
-	int16_t i, j;
-	instrTyp *ins;
+	int16_t i;
 
 	lockMixerCallback();
 
+	freeAllInstr();
 	freeAllPatterns();
-	clearAllInstr();
 
 	oldPlayMode = playMode;
 	playMode = PLAYMODE_IDLE;
@@ -2347,23 +2316,15 @@ static void setupLoadedModule(void)
 	}
 
 	// copy over new instruments (includes sample pointers)
-	memcpy(&instr[1], &instrTmp[1], sizeof (instrTyp) * MAX_INST);
-
-	for (i = 0; i < MAX_INST; i++)
+	for (i = 1; i <= MAX_INST; i++)
 	{
-		// convert zeroes to spaces on left side of strings, in instrument and sample names
-		fixZeroesInString(songTmp.instrName[1+i], 22);
-
-		ins = &instr[1+i];
-		for (j = 0; j < MAX_SMP_PER_INST; j++)
-			fixZeroesInString(ins->samp[j].name, 22);
+		instr[i] = instrTmp[i];
+		fixSampleName(i);
 	}
-
-	// convert zeroes to spaces on the left side, in song name
-	fixZeroesInString(songTmp.name, 20);
 
 	// copy over song struct
 	memcpy(&song, &songTmp, sizeof (songTyp));
+	fixSongName();
 
 	// we are the owners of the allocated memory ptrs set by the loader thread now
 
@@ -2384,7 +2345,7 @@ static void setupLoadedModule(void)
 	setScrollBarPos(SB_POS_ED, 0, false);
 
 	resetChannels();
-	unmuteAllChansOnMusicLoad();
+	refreshScopes();
 	setPos(0, 0);
 	setSpeed(song.speed);
 

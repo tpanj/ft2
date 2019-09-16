@@ -24,6 +24,37 @@ static bool mouseBusyGfxBackwards;
 static int16_t mouseShape;
 static int32_t mouseModeGfxOffs, mouseBusyGfxFrame;
 
+static SDL_Cursor *cArrow, *cIBeam, *cBusy;
+
+void freeSDL2Cursors(void)
+{
+	if (cArrow != NULL)
+	{
+		SDL_FreeCursor(cArrow);
+		cArrow = NULL;
+	}
+
+	if (cIBeam != NULL)
+	{
+		SDL_FreeCursor(cIBeam);
+		cIBeam = NULL;
+	}
+
+	if (cBusy != NULL)
+	{
+		SDL_FreeCursor(cBusy);
+		cBusy = NULL;
+	}
+
+}
+
+void createSDL2Cursors(void)
+{
+	cArrow = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_ARROW);
+	cIBeam = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_IBEAM);
+	cBusy = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_WAIT);
+}
+
 void setMousePosToCenter(void)
 {
 	if (video.fullscreen)
@@ -113,6 +144,9 @@ static void setTextEditMouse(void)
 	setMouseShape(MOUSE_IDLE_TEXT_EDIT);
 	mouse.xBias = -2;
 	mouse.yBias = -6;
+
+	if (config.specialFlags2 & HARDWARE_MOUSE && cIBeam != NULL)
+		SDL_SetCursor(cIBeam);
 }
 
 static void clearTextEditMouse(void)
@@ -120,6 +154,9 @@ static void clearTextEditMouse(void)
 	setMouseShape(config.mouseType);
 	mouse.xBias = 0;
 	mouse.yBias = 0;
+
+	if (config.specialFlags2 & HARDWARE_MOUSE && cArrow != NULL)
+		SDL_SetCursor(cArrow);
 }
 
 static void changeCursorIfOverTextBoxes(void)
@@ -200,6 +237,9 @@ void mouseAnimOn(void)
 
 	editor.busy = true;
 	setMouseShape(config.mouseAnimType);
+
+	if (config.specialFlags2 & HARDWARE_MOUSE && cBusy != NULL)
+		SDL_SetCursor(cBusy);
 }
 
 void mouseAnimOff(void)
@@ -209,6 +249,9 @@ void mouseAnimOff(void)
 
 	editor.busy = false;
 	setMouseShape(config.mouseType);
+
+	if (config.specialFlags2 & HARDWARE_MOUSE && cArrow != NULL)
+		SDL_SetCursor(cArrow);
 }
 
 static void mouseWheelDecRow(void)
@@ -387,7 +430,7 @@ void mouseButtonUpHandler(uint8_t mouseButton)
 
 	if (mouseButton == SDL_BUTTON_LEFT)
 	{
-		mouse.leftButtonPressed  = false;
+		mouse.leftButtonPressed = false;
 		mouse.leftButtonReleased = true;
 
 		if (editor.ui.leftLoopPinMoving)
@@ -404,13 +447,15 @@ void mouseButtonUpHandler(uint8_t mouseButton)
 	}
 	else if (mouseButton == SDL_BUTTON_RIGHT)
 	{
-		mouse.rightButtonPressed  = false;
+		mouse.rightButtonPressed = false;
 		mouse.rightButtonReleased = true;
 
+		
 		if (editor.editSampleFlag)
 		{
-			if (currSmp != NULL)
-				fixSample(currSmp);
+			// right mouse button released after hand-editing sample data
+			if (instr[editor.curInstr] != NULL)
+				fixSample(&instr[editor.curInstr]->samp[editor.curSmp]);
 
 			resumeAudio();
 
@@ -469,7 +514,7 @@ void mouseButtonDownHandler(uint8_t mouseButton)
 	{
 		if (editor.ui.sampleDataOrLoopDrag == -1)
 		{
-			mouse.rightButtonPressed  = true;
+			mouse.rightButtonPressed = true;
 			mouse.rightButtonReleased = false;
 		}
 
@@ -499,7 +544,7 @@ void mouseButtonDownHandler(uint8_t mouseButton)
 	     if (mouseButton == SDL_BUTTON_LEFT)  mouse.leftButtonPressed  = true;
 	else if (mouseButton == SDL_BUTTON_RIGHT) mouse.rightButtonPressed = true;
 
-	mouse.leftButtonReleased  = false;
+	mouse.leftButtonReleased = false;
 	mouse.rightButtonReleased = false;
 
 	// mouse 0,0 = open exit dialog
@@ -526,6 +571,8 @@ void mouseButtonDownHandler(uint8_t mouseButton)
 	/* test objects like this - clickable things *never* overlap, so no need to test all
 	** other objects if we clicked on one already */
 
+	testInstrSwitcherMouseDown(); // kludge: allow right click to both change ins. and edit text
+
 	if (testTextBoxMouseDown())     return;
 	if (testPushButtonMouseDown())  return;
 	if (testCheckBoxMouseDown())    return;
@@ -536,7 +583,6 @@ void mouseButtonDownHandler(uint8_t mouseButton)
 	if (editor.ui.sysReqShown)
 		return;
 
-	if (testInstrSwitcherMouseDown())       return;
 	if (testInstrVolEnvMouseDown(false))    return;
 	if (testInstrPanEnvMouseDown(false))    return;
 	if (testDiskOpMouseDown(false))         return;
@@ -550,23 +596,37 @@ void mouseButtonDownHandler(uint8_t mouseButton)
 
 void handleLastGUIObjectDown(void)
 {
-	if ((mouse.leftButtonPressed || mouse.rightButtonPressed) && mouse.lastUsedObjectType != OBJECT_NONE)
+	if (mouse.lastUsedObjectType == OBJECT_NONE)
+		return;
+
+	if (mouse.leftButtonPressed || mouse.rightButtonPressed)
 	{
-		switch (mouse.lastUsedObjectType)
+		if (mouse.lastUsedObjectID != OBJECT_ID_NONE)
 		{
-			case OBJECT_PUSHBUTTON:  handlePushButtonsWhileMouseDown();  break;
-			case OBJECT_RADIOBUTTON: handleRadioButtonsWhileMouseDown(); break;
-			case OBJECT_CHECKBOX:    handleCheckBoxesWhileMouseDown();   break;
-			case OBJECT_SCROLLBAR:   handleScrollBarsWhileMouseDown();   break;
-			case OBJECT_TEXTBOX:     handleTextBoxWhileMouseDown();      break;
-			case OBJECT_INSTRSWITCH: testInstrSwitcherMouseDown();       break;
-			case OBJECT_PATTERNMARK: handlePatternDataMouseDown(true);   break;
-			case OBJECT_DISKOPLIST:  testDiskOpMouseDown(true);          break;
-			case OBJECT_SMPDATA:     handleSampleDataMouseDown(true);    break;
-			case OBJECT_PIANO:       testPianoKeysMouseDown(true);       break;
-			case OBJECT_INSVOLENV:   testInstrVolEnvMouseDown(true);     break;
-			case OBJECT_INSPANENV:   testInstrPanEnvMouseDown(true);     break;
-			default: break;
+			switch (mouse.lastUsedObjectType)
+			{
+				case OBJECT_PUSHBUTTON:  handlePushButtonsWhileMouseDown();  break;
+				case OBJECT_RADIOBUTTON: handleRadioButtonsWhileMouseDown(); break;
+				case OBJECT_CHECKBOX:    handleCheckBoxesWhileMouseDown();   break;
+				case OBJECT_SCROLLBAR:   handleScrollBarsWhileMouseDown();   break;
+				case OBJECT_TEXTBOX:     handleTextBoxWhileMouseDown();      break;
+				default: break;
+			}
+		}
+		else
+		{
+			// test non-standard GUI elements
+			switch (mouse.lastUsedObjectType)
+			{
+				case OBJECT_INSTRSWITCH: testInstrSwitcherMouseDown();       break;
+				case OBJECT_PATTERNMARK: handlePatternDataMouseDown(true);   break;
+				case OBJECT_DISKOPLIST:  testDiskOpMouseDown(true);          break;
+				case OBJECT_SMPDATA:     handleSampleDataMouseDown(true);    break;
+				case OBJECT_PIANO:       testPianoKeysMouseDown(true);       break;
+				case OBJECT_INSVOLENV:   testInstrVolEnvMouseDown(true);     break;
+				case OBJECT_INSPANENV:   testInstrPanEnvMouseDown(true);     break;
+				default: break;
+			}
 		}
 	}
 }
@@ -640,19 +700,31 @@ void readMouseXY(void)
 	if (mx >= SCREEN_W) mx = SCREEN_W - 1;
 	if (my >= SCREEN_H) my = SCREEN_H - 1;
 
-	x = (int16_t)mx;
-	y = (int16_t)my;
+	if (config.specialFlags2 & HARDWARE_MOUSE)
+	{
+		// hardware mouse (OS)
+		mouse.x = (int16_t)mx;
+		mouse.y = (int16_t)my;
+		hideSprite(SPRITE_MOUSE_POINTER);
+	}
+	else
+	{
+		// software mouse (FT2 mouse)
+		x = (int16_t)mx;
+		y = (int16_t)my;
 
-	mouse.x = x;
-	mouse.y = y;
+		mouse.x = x;
+		mouse.y = y;
 
-	// for text editing cursor (do this after clamp)
-	x += mouse.xBias;
-	y += mouse.yBias;
+		// for text editing cursor (do this after clamp)
+		x += mouse.xBias;
+		y += mouse.yBias;
 
-	if (x < 0) x = 0;
-	if (y < 0) y = 0;
+		if (x < 0) x = 0;
+		if (y < 0) y = 0;
 
-	setSpritePos(SPRITE_MOUSE_POINTER, x, y);
+		setSpritePos(SPRITE_MOUSE_POINTER, x, y);
+	}
+
 	changeCursorIfOverTextBoxes();
 }

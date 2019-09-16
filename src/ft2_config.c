@@ -27,7 +27,9 @@
 #include "ft2_audioselector.h"
 #include "ft2_midi.h"
 #include "ft2_gfxdata.h"
+#include "ft2_palette.h"
 
+// defined at the bottom of this file
 extern const uint8_t defConfigData[CONFIG_FILE_SIZE];
 
 // globals
@@ -71,8 +73,7 @@ static int32_t calcChecksum(uint8_t *p, uint16_t len) // for nibbles highscore d
 
 static void loadConfigFromBuffer(uint8_t defaults)
 {
-	uint8_t *ptr8;
-	int32_t checksum;
+	int32_t i, checksum;
 
 	lockMixerCallback();
 
@@ -88,50 +89,60 @@ static void loadConfigFromBuffer(uint8_t defaults)
 	// if Nibbles highscore table checksum is incorrect, load default highscore table instead
 	checksum = calcChecksum((uint8_t *)&config.NI_HighScore, sizeof (config.NI_HighScore));
 	if (config.NI_HighScoreChecksum != checksum)
-		memcpy(&config.NI_HighScore, &defConfigData[636], sizeof (config.NI_HighScore));
-
-	// clamp palette to max value of 64
-
-	ptr8 = (uint8_t *)&config.palBackgroundR;
-	for (int32_t i = 0; i < (16 * 3); i++)
 	{
-		if (ptr8[i] > 64)
-			ptr8[i] = 64;
+		memcpy(&config.NI_HighScore, &defConfigData[636], sizeof (config.NI_HighScore));
+		for (i = 0; i < 10; i++)
+		{
+			config.NI_HighScore[i].name[21] = '\0';
+			if (config.NI_HighScore[i].nameLen > 21)
+				config.NI_HighScore[i].nameLen = 21;
+		}
 	}
+
+	// clamp user palette values
+	for (i = 0; i < 16; i++)
+	{
+		config.userPal->r = palMax(config.userPal->r);
+		config.userPal->g = palMax(config.userPal->g);
+		config.userPal->b = palMax(config.userPal->b);
+	}
+
+	// copy over user palette
+	memcpy(palTable[11], config.userPal, sizeof (pal16) * 16);
 
 	// sanitize certain values
 
-	config.modulesPath[80-1]  = '\0';
-	config.instrPath[80-1]    = '\0';
-	config.samplesPath[80-1]  = '\0';
+	config.modulesPath[80-1] = '\0';
+	config.instrPath[80-1] = '\0';
+	config.samplesPath[80-1] = '\0';
 	config.patternsPath[80-1] = '\0';
-	config.tracksPath[80-1]   = '\0';
+	config.tracksPath[80-1] = '\0';
 
-	config.boostLevel       = CLAMP(config.boostLevel,       1,  32);
-	config.masterVol        = CLAMP(config.masterVol,        0, 256);
-	config.ptnMaxChannels   = CLAMP(config.ptnMaxChannels,   0,   3);
-	config.ptnFont          = CLAMP(config.ptnFont,          0,   3);
-	config.mouseType        = CLAMP(config.mouseType,        0,   3);
-	config.cfg_StdPalNr     = CLAMP(config.cfg_StdPalNr,     0,  11);
-	config.cfg_SortPriority = CLAMP(config.cfg_SortPriority, 0,   1);
-	config.NI_AntPlayers    = CLAMP(config.NI_AntPlayers,    0,   1);
-	config.NI_Speed         = CLAMP(config.NI_Speed,         0,   3);
-	config.recMIDIVolSens   = CLAMP(config.recMIDIVolSens,   0, 200);
-	config.recMIDIChn       = CLAMP(config.recMIDIChn,       1,  16);
+	config.boostLevel = CLAMP(config.boostLevel, 1, 32);
+	config.masterVol = CLAMP(config.masterVol, 0, 256);
+	config.ptnMaxChannels = CLAMP(config.ptnMaxChannels, 0, 3);
+	config.ptnFont = CLAMP(config.ptnFont, 0, 3);
+	config.mouseType = CLAMP(config.mouseType, 0, 3);
+	config.cfg_StdPalNr = CLAMP(config.cfg_StdPalNr, 0, 11);
+	config.cfg_SortPriority = CLAMP(config.cfg_SortPriority, 0, 1);
+	config.NI_AntPlayers = CLAMP(config.NI_AntPlayers, 0, 1);
+	config.NI_Speed = CLAMP(config.NI_Speed, 0, 3);
+	config.recMIDIVolSens = CLAMP(config.recMIDIVolSens, 0, 200);
+	config.recMIDIChn  = CLAMP(config.recMIDIChn, 1, 16);
 
 	if (config.recTrueInsert > 1)
 		config.recTrueInsert = 1;
 
-	if ((config.mouseAnimType != 0) && (config.mouseAnimType != 2))
+	if (config.mouseAnimType != 0 && config.mouseAnimType != 2)
 		config.mouseAnimType = 0;
 
-	if ((config.recQuantRes != 1) && (config.recQuantRes != 2) && (config.recQuantRes != 4) &&
-		(config.recQuantRes != 8) && (config.recQuantRes != 16))
+	if (config.recQuantRes != 1 && config.recQuantRes != 2 && config.recQuantRes != 4 &&
+		config.recQuantRes != 8 && config.recQuantRes != 16)
 	{
 		config.recQuantRes = 16;
 	}
 
-	if ((config.audioFreq != 44100) && (config.audioFreq != 48000) && (config.audioFreq != 96000))
+	if (config.audioFreq != 44100 && config.audioFreq != 48000 && config.audioFreq != 96000)
 	{
 		// set default
 #ifdef __APPLE__
@@ -154,140 +165,21 @@ static void loadConfigFromBuffer(uint8_t defaults)
 	if (audio.dev != 0)
 		setNewAudioSettings();
 
-	// reset temporary contrast settings for custom preset
-	video.customPaletteContrasts[0] = 52;
-	video.customPaletteContrasts[1] = 57;
-	setPalettePreset(config.cfg_StdPalNr);
-
 	audioSetInterpolation(config.interpolation ? true : false);
 	audioSetVolRamp((config.specialFlags & NO_VOLRAMP_FLAG) ? false : true);
 	setAudioAmp(config.boostLevel, config.masterVol, config.specialFlags & BITDEPTH_24);
-
 	setMouseShape(config.mouseType);
 	changeLogoType(config.id_FastLogo);
 	changeBadgeType(config.id_TritonProd);
-
 	editor.ui.maxVisibleChannels = (uint8_t)(2 + ((config.ptnMaxChannels + 1) * 2));
+	setPal16(palTable[config.cfg_StdPalNr], true);
 
 	unlockMixerCallback();
-}
-
-static uint8_t getCurrentPaletteEntry(void)
-{
-	switch (editor.currPaletteEdit)
-	{
-		default:
-		case 0: return PAL_PATTEXT;
-		case 1: return PAL_BLCKMRK;
-		case 2: return PAL_BLCKTXT;
-		case 3: return PAL_MOUSEPT;
-		case 4: return PAL_DESKTOP;
-		case 5: return PAL_BUTTONS;
-	}
-}
-
-static void drawCurrentPaletteColor(void)
-{
-	uint8_t palIndex;
-
-	if (editor.ui.configScreenShown && editor.currConfigScreen == CONFIG_SCREEN_LAYOUT)
-	{
-		palIndex = getCurrentPaletteEntry();
-		textOutShadow(516, 3, PAL_FORGRND, PAL_DSKTOP2, "Palette:");
-		hexOutBg(573, 3, PAL_FORGRND, PAL_DESKTOP, video.palette[palIndex], 6);
-		clearRect(616, 2, 12, 10);
-		fillRect(617, 3, 10, 8, palIndex);
-	}
-}
-
-static void drawContrastText(void)
-{
-	char str[10];
-	int32_t percent;
-
-	if (config.cfg_StdPalNr == PAL_USER_DEFINED)
-	{
-		if (editor.currPaletteEdit == 4)
-			percent = editor.ui.desktopContrast;
-		else
-			percent = editor.ui.buttonContrast;
-
-		sprintf(str, "%3d", percent);
-		textOutFixed(599, 59, PAL_FORGRND, PAL_DESKTOP, str);
-	}
-}
-
-static void showPaletteEditor(void)
-{
-	if (config.cfg_StdPalNr == PAL_USER_DEFINED)
-	{
-		charOutShadow(503, 17, PAL_FORGRND, PAL_DSKTOP2, 'R');
-		charOutShadow(503, 31, PAL_FORGRND, PAL_DSKTOP2, 'G');
-		charOutShadow(503, 45, PAL_FORGRND, PAL_DSKTOP2, 'B');
-
-		showScrollBar(SB_PAL_R);
-		showScrollBar(SB_PAL_G);
-		showScrollBar(SB_PAL_B);
-		showPushButton(PB_CONFIG_PAL_R_DOWN);
-		showPushButton(PB_CONFIG_PAL_R_UP);
-		showPushButton(PB_CONFIG_PAL_G_DOWN);
-		showPushButton(PB_CONFIG_PAL_G_UP);
-		showPushButton(PB_CONFIG_PAL_B_DOWN);
-		showPushButton(PB_CONFIG_PAL_B_UP);
-
-		showRadioButtonGroup(RB_GROUP_CONFIG_PAL_ENTRIES);
-
-		if (editor.currPaletteEdit >= 4)
-		{
-			textOutShadow(516, 59, PAL_FORGRND, PAL_DSKTOP2, "Contrast:");
-
-			     if (editor.currPaletteEdit == 4) setScrollBarPos(SB_PAL_CONTRAST, editor.ui.desktopContrast, false);
-			else if (editor.currPaletteEdit == 5) setScrollBarPos(SB_PAL_CONTRAST, editor.ui.buttonContrast,  false);
-
-			showScrollBar(SB_PAL_CONTRAST);
-			showPushButton(PB_CONFIG_PAL_CONT_DOWN);
-			showPushButton(PB_CONFIG_PAL_CONT_UP);
-
-			charOutShadow(620, 59, PAL_FORGRND, PAL_DSKTOP2, '%');
-			drawContrastText();
-		}
-		else
-		{
-			// clear contrast stuff
-			fillRect(513, 59, 116, 25, PAL_DESKTOP);
-		}
-
-		drawCurrentPaletteColor();
-	}
-	else
-	{
-		hideScrollBar(SB_PAL_R);
-		hideScrollBar(SB_PAL_G);
-		hideScrollBar(SB_PAL_B);
-		hideScrollBar(SB_PAL_CONTRAST);
-		hidePushButton(PB_CONFIG_PAL_R_DOWN);
-		hidePushButton(PB_CONFIG_PAL_R_UP);
-		hidePushButton(PB_CONFIG_PAL_G_DOWN);
-		hidePushButton(PB_CONFIG_PAL_G_UP);
-		hidePushButton(PB_CONFIG_PAL_B_DOWN);
-		hidePushButton(PB_CONFIG_PAL_B_UP);
-		hidePushButton(PB_CONFIG_PAL_CONT_DOWN);
-		hidePushButton(PB_CONFIG_PAL_CONT_UP);
-
-		hideRadioButtonGroup(RB_GROUP_CONFIG_PAL_ENTRIES);
-
-		fillRect(398, 2, 232, 82, PAL_DESKTOP);
-		textOutShadow(453, 22, PAL_FORGRND, PAL_DSKTOP2, "The palette editor is");
-		textOutShadow(431, 33, PAL_FORGRND, PAL_DSKTOP2, "disabled on built-in presets.");
-		textOutShadow(427, 44, PAL_FORGRND, PAL_DSKTOP2, "Select \"User defined\" to make");
-		textOutShadow(454, 55, PAL_FORGRND, PAL_DSKTOP2, "your own FT2 palette.");
-	}
 }
 
 static void configDrawAmp(void)
 {
 	char str[8];
-
 	sprintf(str, "%02d", config.boostLevel);
 	textOutFixed(607, 120, PAL_FORGRND, PAL_DESKTOP, str);
 }
@@ -329,6 +221,11 @@ void resetConfig(void)
 			enterFullscreen();
 		}
 	}
+
+	if (config.specialFlags2 & HARDWARE_MOUSE)
+		SDL_ShowCursor(SDL_TRUE);
+	else
+		SDL_ShowCursor(SDL_FALSE);
 }
 
 bool loadConfig(bool showErrorFlag)
@@ -454,21 +351,11 @@ void loadConfig2(void) // called by "Load config" button
 			enterFullscreen();
 		}
 	}
-}
 
-// used to calculate length of text in config's default paths (Pascal strings)
-static char getDefPathLen(char *ptr)
-{
-	int32_t i;
-
-	ptr++; // skip Pascal string length byte
-	for (i = 0; i < 80; i++)
-	{
-		if (ptr[i] == '\0')
-			break;
-	}
-
-	return (char)i;
+	if (config.specialFlags2 & HARDWARE_MOUSE)
+		SDL_ShowCursor(SDL_TRUE);
+	else
+		SDL_ShowCursor(SDL_FALSE);
 }
 
 bool saveConfig(bool showErrorFlag)
@@ -498,11 +385,14 @@ bool saveConfig(bool showErrorFlag)
 	config.NI_HighScoreChecksum = calcChecksum((uint8_t *)config.NI_HighScore, sizeof (config.NI_HighScore));
 
 	// set default path lengths (Pascal strings)
-	config.modulesPath[0]  = getDefPathLen(config.modulesPath);
-	config.instrPath[0]    = getDefPathLen(config.instrPath);
-	config.samplesPath[0]  = getDefPathLen(config.samplesPath);
-	config.patternsPath[0] = getDefPathLen(config.patternsPath);
-	config.tracksPath[0]   = getDefPathLen(config.tracksPath);
+	config.modulesPathLen = (uint8_t)strlen(config.modulesPath);
+	config.instrPathLen = (uint8_t)strlen(config.instrPath);
+	config.samplesPathLen = (uint8_t)strlen(config.samplesPath);
+	config.patternsPathLen = (uint8_t)strlen(config.patternsPath);
+	config.tracksPathLen = (uint8_t)strlen(config.tracksPath);
+
+	// copy over user palette
+	memcpy(config.userPal, palTable[11], sizeof (pal16) * 16);
 
 	memcpy(configBuffer, &config, CONFIG_FILE_SIZE);
 
@@ -764,7 +654,7 @@ static void setConfigFileLocation(void) // kinda hackish
 	strcat(editor.configFileLocation, "/FT2.CFG");
 #endif
 
-	editor.midiConfigFileLocation     = getFullMidiDevConfigPath();
+	editor.midiConfigFileLocation = getFullMidiDevConfigPath();
 	editor.audioDevConfigFileLocation = getFullAudDevConfigPath();
 }
 
@@ -825,33 +715,6 @@ void loadConfigOrSetDefaults(void)
 	}
 
 	loadConfigFromBuffer(false);
-}
-
-static void updatePaletteSelection(void)
-{
-	uint8_t r, g, b;
-	uint32_t pixel;
-
-	pixel = video.palette[getCurrentPaletteEntry()];
-
-	r = P8_TO_P6(RGB_R(pixel));
-	g = P8_TO_P6(RGB_G(pixel));
-	b = P8_TO_P6(RGB_B(pixel));
-
-	setScrollBarPos(SB_PAL_R, r, false);
-	setScrollBarPos(SB_PAL_G, g, false);
-	setScrollBarPos(SB_PAL_B, b, false);
-
-	if (editor.currPaletteEdit == 4)
-	{
-		editor.ui.desktopContrast = video.customPaletteContrasts[0];
-		setScrollBarPos(SB_PAL_CONTRAST, editor.ui.desktopContrast, false);
-	}
-	else if (editor.currPaletteEdit == 5)
-	{
-		editor.ui.buttonContrast = video.customPaletteContrasts[1];
-		setScrollBarPos(SB_PAL_CONTRAST, editor.ui.buttonContrast, false);
-	}
 }
 
 static void drawQuantValue(void)
@@ -973,7 +836,7 @@ static void setConfigIOCheckButtonStates(void)
 {
 	checkBoxes[CB_CONF_INTERPOLATION].checked = config.interpolation;
 	checkBoxes[CB_CONF_VOL_RAMP].checked = (config.specialFlags & NO_VOLRAMP_FLAG) ? false : true;
-	checkBoxes[CB_CONF_DITHER].checked = (config.specialFlags & BITDEPTH_24) ? false : config.audioDither;
+	checkBoxes[CB_CONF_DITHER].checked = (config.specialFlags & BITDEPTH_24) ? false : config.specialFlags2 & DITHERED_AUDIO;
 
 	showCheckBox(CB_CONF_INTERPOLATION);
 	showCheckBox(CB_CONF_VOL_RAMP);
@@ -990,6 +853,7 @@ static void setConfigLayoutCheckButtonStates(void)
 	checkBoxes[CB_CONF_LINECOLORS].checked = config.ptnLineLight;
 	checkBoxes[CB_CONF_CHANNUMS].checked = config.ptnChnNumbers;
 	checkBoxes[CB_CONF_SHOW_VOLCOL].checked = config.ptnS3M;
+	checkBoxes[CB_CONF_HARDWARE_MOUSE].checked = (config.specialFlags2 & HARDWARE_MOUSE) ? true : false;
 
 	showCheckBox(CB_CONF_PATTSTRETCH);
 	showCheckBox(CB_CONF_HEXCOUNT);
@@ -999,6 +863,7 @@ static void setConfigLayoutCheckButtonStates(void)
 	showCheckBox(CB_CONF_LINECOLORS);
 	showCheckBox(CB_CONF_CHANNUMS);
 	showCheckBox(CB_CONF_SHOW_VOLCOL);
+	showCheckBox(CB_CONF_HARDWARE_MOUSE);
 }
 
 static void setConfigLayoutRadioButtonStates(void)
@@ -1069,12 +934,8 @@ static void setConfigLayoutRadioButtonStates(void)
 
 	// PALETTE ENTRIES
 	uncheckRadioButtonGroup(RB_GROUP_CONFIG_PAL_ENTRIES);
-
-	if (config.cfg_StdPalNr == PAL_USER_DEFINED)
-	{
-		radioButtons[RB_CONFIG_PAL_PATTERNTEXT + editor.currPaletteEdit].state = RADIOBUTTON_CHECKED;
-		showRadioButtonGroup(RB_GROUP_CONFIG_PAL_ENTRIES);
-	}
+	radioButtons[RB_CONFIG_PAL_PATTERNTEXT + cfg_ColorNr].state = RADIOBUTTON_CHECKED;
+	showRadioButtonGroup(RB_GROUP_CONFIG_PAL_ENTRIES);
 
 	// PALETTE PRESET
 	uncheckRadioButtonGroup(RB_GROUP_CONFIG_PAL_PRESET);
@@ -1167,10 +1028,10 @@ static void setConfigMiscRadioButtonStates(void)
 	uncheckRadioButtonGroup(RB_GROUP_CONFIG_WIN_SIZE);
 
 	     if (config.windowFlags & WINSIZE_AUTO) tmpID = RB_CONFIG_WIN_SIZE_AUTO;
-	else if (config.windowFlags & WINSIZE_1X)   tmpID = RB_CONFIG_WIN_SIZE_1X;
-	else if (config.windowFlags & WINSIZE_2X)   tmpID = RB_CONFIG_WIN_SIZE_2X;
-	else if (config.windowFlags & WINSIZE_3X)   tmpID = RB_CONFIG_WIN_SIZE_3X;
-	else if (config.windowFlags & WINSIZE_4X)   tmpID = RB_CONFIG_WIN_SIZE_4X;
+	else if (config.windowFlags & WINSIZE_1X) tmpID = RB_CONFIG_WIN_SIZE_1X;
+	else if (config.windowFlags & WINSIZE_2X) tmpID = RB_CONFIG_WIN_SIZE_2X;
+	else if (config.windowFlags & WINSIZE_3X) tmpID = RB_CONFIG_WIN_SIZE_3X;
+	else if (config.windowFlags & WINSIZE_4X) tmpID = RB_CONFIG_WIN_SIZE_4X;
 
 	radioButtons[tmpID].state = RADIOBUTTON_CHECKED;
 
@@ -1336,9 +1197,11 @@ void showConfigScreen(void)
 			textOutShadow(272, 130, PAL_FORGRND, PAL_DSKTOP2, "Future");
 			textOutShadow(338, 129, PAL_FORGRND, PAL_DSKTOP2, "Bold");
 
-			textOutShadow(256, 146, PAL_FORGRND, PAL_DSKTOP2, "Scope style:");
-			textOutShadow(272, 159, PAL_FORGRND, PAL_DSKTOP2, "Original");
-			textOutShadow(338, 159, PAL_FORGRND, PAL_DSKTOP2, "Lined");
+			textOutShadow(256, 146, PAL_FORGRND, PAL_DSKTOP2, "Scopes:");
+			textOutShadow(319, 146, PAL_FORGRND, PAL_DSKTOP2, "Std.");
+			textOutShadow(360, 146, PAL_FORGRND, PAL_DSKTOP2, "Lined");
+
+			textOutShadow(272, 160, PAL_FORGRND, PAL_DSKTOP2, "Hardware mouse");
 
 			textOutShadow(414,   3, PAL_FORGRND, PAL_DSKTOP2, "Pattern text");
 			textOutShadow(414,  17, PAL_FORGRND, PAL_DSKTOP2, "Block mark");
@@ -1359,9 +1222,6 @@ void showConfigScreen(void)
 			textOutShadow(528, 146, PAL_FORGRND, PAL_DSKTOP2, "Why colors ?");
 			textOutShadow(414, 160, PAL_FORGRND, PAL_DSKTOP2, "Jungle");
 			textOutShadow(528, 160, PAL_FORGRND, PAL_DSKTOP2, "User defined");
-
-			if (config.cfg_StdPalNr == PAL_USER_DEFINED)
-				updatePaletteSelection();
 
 			showPaletteEditor();
 
@@ -1541,6 +1401,7 @@ void hideConfigScreen(void)
 	hideCheckBox(CB_CONF_LINECOLORS);
 	hideCheckBox(CB_CONF_CHANNUMS);
 	hideCheckBox(CB_CONF_SHOW_VOLCOL);
+	hideCheckBox(CB_CONF_HARDWARE_MOUSE);
 	hidePushButton(PB_CONFIG_PAL_R_DOWN);
 	hidePushButton(PB_CONFIG_PAL_R_UP);
 	hidePushButton(PB_CONFIG_PAL_G_DOWN);
@@ -1699,8 +1560,7 @@ void rbConfigAudio24bit(void)
 	config.specialFlags &= ~BITDEPTH_16;
 	config.specialFlags |=  BITDEPTH_24;
 
-	// no dither in float mode
-	config.audioDither = 0;
+	config.specialFlags2 &= ~DITHERED_AUDIO; // no dither in "24-bit float" mode
 
 	checkBoxes[CB_CONF_DITHER].checked = false;
 	if (editor.currConfigScreen == CONFIG_SCREEN_IO_DEVICES)
@@ -1762,7 +1622,7 @@ void cbConfigDither(void)
 {
 	if (config.specialFlags & BITDEPTH_24) // no dither in float mode, force off
 	{
-		config.audioDither = 0;
+		config.specialFlags2 &= ~DITHERED_AUDIO;
 
 		checkBoxes[CB_CONF_DITHER].checked = false;
 		if (editor.currConfigScreen == CONFIG_SCREEN_IO_DEVICES)
@@ -1770,7 +1630,7 @@ void cbConfigDither(void)
 	}
 	else
 	{
-		config.audioDither ^= 1;
+		config.specialFlags2 ^= DITHERED_AUDIO;
 		updateSendAudSamplesRoutine(true);
 	}
 }
@@ -1836,6 +1696,16 @@ void cbConfigShowVolCol(void)
 	redrawPatternEditor();
 }
 
+void cbHardwareMouse(void)
+{
+	config.specialFlags2 ^= HARDWARE_MOUSE;
+
+	if (config.specialFlags2 & HARDWARE_MOUSE)
+		SDL_ShowCursor(true);
+	else
+		SDL_ShowCursor(false);
+}
+
 void rbConfigMouseNice(void)
 {
 	config.mouseType = MOUSE_IDLE_SHAPE_NICE;
@@ -1878,7 +1748,7 @@ void rbConfigMouseBusyMrH(void)
 	resetMouseBusyAnimation();
 }
 
-void rbConfigScopeOriginal(void)
+void rbConfigScopeStandard(void)
 {
 	config.specialFlags &= ~LINED_SCOPES;
 	checkRadioButton(RB_CONFIG_SCOPE_NORMAL);
@@ -1894,7 +1764,6 @@ void rbConfigPatt4Chans(void)
 {
 	config.ptnMaxChannels = MAX_CHANS_SHOWN_4;
 	checkRadioButton(RB_CONFIG_MAXCHAN_4);
-
 	editor.ui.maxVisibleChannels = 2 + (((uint8_t)config.ptnMaxChannels + 1) * 2);
 	redrawPatternEditor();
 }
@@ -1903,7 +1772,6 @@ void rbConfigPatt6Chans(void)
 {
 	config.ptnMaxChannels = MAX_CHANS_SHOWN_6;
 	checkRadioButton(RB_CONFIG_MAXCHAN_6);
-
 	editor.ui.maxVisibleChannels = 2 + (((uint8_t)config.ptnMaxChannels + 1) * 2);
 	redrawPatternEditor();
 }
@@ -1912,7 +1780,6 @@ void rbConfigPatt8Chans(void)
 {
 	config.ptnMaxChannels = MAX_CHANS_SHOWN_8;
 	checkRadioButton(RB_CONFIG_MAXCHAN_8);
-
 	editor.ui.maxVisibleChannels = 2 + (((uint8_t)config.ptnMaxChannels + 1) * 2);
 	redrawPatternEditor();
 }
@@ -1921,7 +1788,6 @@ void rbConfigPatt12Chans(void)
 {
 	config.ptnMaxChannels = MAX_CHANS_SHOWN_12;
 	checkRadioButton(RB_CONFIG_MAXCHAN_12);
-
 	editor.ui.maxVisibleChannels = 2 + (((uint8_t)config.ptnMaxChannels + 1) * 2);
 	redrawPatternEditor();
 }
@@ -1954,176 +1820,6 @@ void rbConfigFontBold(void)
 	redrawPatternEditor();
 }
 
-void rbConfigPalPatternText(void)
-{
-	editor.currPaletteEdit = 0;
-	editor.currPaletteEntry = &video.palette[PAL_PATTEXT];
-	checkRadioButton(RB_CONFIG_PAL_PATTERNTEXT);
-
-	updatePaletteSelection();
-	showPaletteEditor();
-}
-
-void rbConfigPalBlockMark(void)
-{
-	editor.currPaletteEdit = 1;
-	editor.currPaletteEntry = &video.palette[PAL_BLCKMRK];
-	checkRadioButton(RB_CONFIG_PAL_BLOCKMARK);
-
-	updatePaletteSelection();
-	showPaletteEditor();
-}
-
-void rbConfigPalTextOnBlock(void)
-{
-	editor.currPaletteEdit = 2;
-	editor.currPaletteEntry = &video.palette[PAL_BLCKTXT];
-	checkRadioButton(RB_CONFIG_PAL_TEXTONBLOCK);
-
-	updatePaletteSelection();
-	showPaletteEditor();
-}
-
-void rbConfigPalMouse(void)
-{
-	editor.currPaletteEdit = 3;
-	editor.currPaletteEntry = &video.palette[PAL_MOUSEPT];
-	checkRadioButton(RB_CONFIG_PAL_MOUSE);
-
-	updatePaletteSelection();
-	showPaletteEditor();
-}
-
-void rbConfigPalDesktop(void)
-{
-	editor.currPaletteEdit = 4;
-	editor.currPaletteEntry = &video.palette[PAL_DESKTOP];
-	checkRadioButton(RB_CONFIG_PAL_DESKTOP);
-
-	setScrollBarPos(SB_PAL_CONTRAST, editor.ui.desktopContrast, false);
-	showPaletteEditor();
-	updatePaletteSelection();
-}
-
-void rbConfigPalButttons(void)
-{
-	editor.currPaletteEdit = 5;
-	editor.currPaletteEntry = &video.palette[PAL_BUTTONS];
-	checkRadioButton(RB_CONFIG_PAL_BUTTONS);
-
-	setScrollBarPos(SB_PAL_CONTRAST, editor.ui.buttonContrast, false);
-	showPaletteEditor();
-	updatePaletteSelection();
-}
-
-void rbConfigPalArctic(void)
-{
-	config.cfg_StdPalNr = PAL_ARCTIC;
-	setPalettePreset(PAL_ARCTIC);
-	checkRadioButton(RB_CONFIG_PAL_ARCTIC);
-
-	showPaletteEditor();
-}
-
-void rbConfigPalLitheDark(void)
-{
-	config.cfg_StdPalNr = PAL_LITHE_DARK;
-	setPalettePreset(PAL_LITHE_DARK);
-	checkRadioButton(RB_CONFIG_PAL_LITHE_DARK);
-
-	showPaletteEditor();
-}
-
-void rbConfigPalAuroraBorealis(void)
-{
-	config.cfg_StdPalNr = PAL_AURORA_BOREALIS;
-	setPalettePreset(PAL_AURORA_BOREALIS);
-	checkRadioButton(RB_CONFIG_PAL_AURORA_BOREALIS);
-
-	showPaletteEditor();
-}
-
-void rbConfigPalRose(void)
-{
-	config.cfg_StdPalNr = PAL_ROSE;
-	setPalettePreset(PAL_ROSE);
-	checkRadioButton(RB_CONFIG_PAL_ROSE);
-
-	showPaletteEditor();
-}
-
-void rbConfigPalBlues(void)
-{
-	config.cfg_StdPalNr = PAL_BLUES;
-	setPalettePreset(PAL_BLUES);
-	checkRadioButton(RB_CONFIG_PAL_BLUES);
-
-	showPaletteEditor();
-}
-
-void rbConfigPalSpacePigs(void)
-{
-	config.cfg_StdPalNr = PAL_SPACE_PIGS;
-	setPalettePreset(PAL_SPACE_PIGS);
-	checkRadioButton(RB_CONFIG_PAL_SPACE_PIGS);
-
-	showPaletteEditor();
-}
-
-void rbConfigPalGold(void)
-{
-	config.cfg_StdPalNr = PAL_GOLD;
-	setPalettePreset(PAL_GOLD);
-	checkRadioButton(RB_CONFIG_PAL_GOLD);
-
-	showPaletteEditor();
-}
-
-void rbConfigPalViolent(void)
-{
-	config.cfg_StdPalNr = PAL_VIOLENT;
-	setPalettePreset(PAL_VIOLENT);
-	checkRadioButton(RB_CONFIG_PAL_VIOLENT);
-
-	showPaletteEditor();
-}
-
-void rbConfigPalHeavyMetal(void)
-{
-	config.cfg_StdPalNr = PAL_HEAVY_METAL;
-	setPalettePreset(PAL_HEAVY_METAL);
-	checkRadioButton(RB_CONFIG_PAL_HEAVY_METAL);
-
-	showPaletteEditor();
-}
-
-void rbConfigPalWhyColors(void)
-{
-	config.cfg_StdPalNr = PAL_WHY_COLORS;
-	setPalettePreset(PAL_WHY_COLORS);
-	checkRadioButton(RB_CONFIG_PAL_WHY_COLORS);
-
-	showPaletteEditor();
-}
-
-void rbConfigPalJungle(void)
-{
-	config.cfg_StdPalNr = PAL_JUNGLE;
-	setPalettePreset(PAL_JUNGLE);
-	checkRadioButton(RB_CONFIG_PAL_JUNGLE);
-
-	showPaletteEditor();
-}
-
-void rbConfigPalUserDefined(void)
-{
-	config.cfg_StdPalNr = PAL_USER_DEFINED;
-	setPalettePreset(PAL_USER_DEFINED);
-	checkRadioButton(RB_CONFIG_PAL_USER_DEFINED);
-
-	showPaletteEditor();
-}
-
 void rbFileSortExt(void)
 {
 	config.cfg_SortPriority = FILESORT_EXT;
@@ -2148,7 +1844,6 @@ void rbWinSizeAuto(void)
 
 	config.windowFlags &= ~(WINSIZE_1X + WINSIZE_2X + WINSIZE_3X + WINSIZE_4X);
 	config.windowFlags |= WINSIZE_AUTO;
-
 	setWindowSizeFromConfig(true);
 	checkRadioButton(RB_CONFIG_WIN_SIZE_AUTO);
 }
@@ -2163,7 +1858,6 @@ void rbWinSize1x(void)
 
 	config.windowFlags &= ~(WINSIZE_AUTO + WINSIZE_2X + WINSIZE_3X + WINSIZE_4X);
 	config.windowFlags |= WINSIZE_1X;
-
 	setWindowSizeFromConfig(true);
 	checkRadioButton(RB_CONFIG_WIN_SIZE_1X);
 }
@@ -2178,7 +1872,6 @@ void rbWinSize2x(void)
 
 	config.windowFlags &= ~(WINSIZE_AUTO + WINSIZE_1X + WINSIZE_3X + WINSIZE_4X);
 	config.windowFlags |= WINSIZE_2X;
-
 	setWindowSizeFromConfig(true);
 	checkRadioButton(RB_CONFIG_WIN_SIZE_2X);
 }
@@ -2193,7 +1886,6 @@ void rbWinSize3x(void)
 
 	config.windowFlags &= ~(WINSIZE_AUTO + WINSIZE_1X + WINSIZE_2X + WINSIZE_4X);
 	config.windowFlags |= WINSIZE_3X;
-
 	setWindowSizeFromConfig(true);
 	checkRadioButton(RB_CONFIG_WIN_SIZE_3X);
 }
@@ -2208,505 +1900,8 @@ void rbWinSize4x(void)
 
 	config.windowFlags &= ~(WINSIZE_AUTO + WINSIZE_1X + WINSIZE_2X + WINSIZE_3X);
 	config.windowFlags |= WINSIZE_4X;
-
 	setWindowSizeFromConfig(true);
 	checkRadioButton(RB_CONFIG_WIN_SIZE_4X);
-}
-
-void sbPalRPos(uint32_t pos)
-{
-	uint8_t paletteEntry;
-	uint16_t r;
-	uint32_t *pixel;
-
-	if (config.cfg_StdPalNr != PAL_USER_DEFINED)
-		return;
-
-	paletteEntry = getCurrentPaletteEntry();
-	pixel = &video.palette[paletteEntry];
-
-	r = P8_TO_P6(RGB_R(*pixel));
-	if (pos != r)
-	{
-		r = (int16_t)pos;
-
-		*pixel &= 0xFF00FFFF;
-		*pixel |= (P6_TO_P8(r) << 16);
-
-		switch (paletteEntry)
-		{
-			case PAL_PATTEXT:
-			{
-				config.palPattTextR = (uint8_t)r;
-				updateLoopPinPalette();
-			}
-			break;
-
-			case PAL_BLCKMRK: config.palBlockMarkR   = (uint8_t)r; break;
-			case PAL_BLCKTXT: config.palTextOnBlockR = (uint8_t)r; break;
-			case PAL_MOUSEPT: config.palMouseR       = (uint8_t)r; break;
-			case PAL_DESKTOP: config.palDesktopR     = (uint8_t)r; break;
-			case PAL_BUTTONS: config.palButtonsR     = (uint8_t)r; break;
-			default: break;
-		}
-
-		updatePaletteContrast();
-
-		showTopScreen(false);
-		showBottomScreen();
-
-		drawCurrentPaletteColor();
-	}
-}
-
-void sbPalGPos(uint32_t pos)
-{
-	uint8_t paletteEntry;
-	uint16_t g;
-	uint32_t *pixel;
-
-	if (config.cfg_StdPalNr != PAL_USER_DEFINED)
-		return;
-
-	paletteEntry = getCurrentPaletteEntry();
-	pixel = &video.palette[paletteEntry];
-
-	g = P8_TO_P6(RGB_G(*pixel));
-	if (pos != g)
-	{
-		g = (int16_t)pos;
-
-		*pixel &= 0xFFFF00FF;
-		*pixel |= (P6_TO_P8(g) << 8);
-
-		switch (paletteEntry)
-		{
-			case PAL_PATTEXT:
-			{
-				config.palPattTextG = (uint8_t)g;
-				updateLoopPinPalette();
-			}
-			break;
-
-			case PAL_BLCKMRK: config.palBlockMarkG   = (uint8_t)g; break;
-			case PAL_BLCKTXT: config.palTextOnBlockG = (uint8_t)g; break;
-			case PAL_MOUSEPT: config.palMouseG       = (uint8_t)g; break;
-			case PAL_DESKTOP: config.palDesktopG     = (uint8_t)g; break;
-			case PAL_BUTTONS: config.palButtonsG     = (uint8_t)g; break;
-			default: break;
-		}
-
-		updatePaletteContrast();
-
-		showTopScreen(false);
-		showBottomScreen();
-
-		drawCurrentPaletteColor();
-	}
-}
-
-void sbPalBPos(uint32_t pos)
-{
-	uint8_t paletteEntry;
-	uint16_t b;
-	uint32_t *pixel;
-
-	if (config.cfg_StdPalNr != PAL_USER_DEFINED)
-		return;
-
-	paletteEntry = getCurrentPaletteEntry();
-	pixel = &video.palette[paletteEntry];
-
-	b = P8_TO_P6(RGB_B(*pixel));
-	if (pos != b)
-	{
-		b = (int16_t)pos;
-
-		*pixel &= 0xFFFFFF00;
-		*pixel |= P6_TO_P8(b);
-
-		switch (paletteEntry)
-		{
-			case PAL_PATTEXT:
-			{
-				config.palPattTextB = (uint8_t)b;
-				updateLoopPinPalette();
-			}
-			break;
-
-			case PAL_BLCKMRK: config.palBlockMarkB   = (uint8_t)b; break;
-			case PAL_BLCKTXT: config.palTextOnBlockB = (uint8_t)b; break;
-			case PAL_MOUSEPT: config.palMouseB       = (uint8_t)b; break;
-			case PAL_DESKTOP: config.palDesktopB     = (uint8_t)b; break;
-			case PAL_BUTTONS: config.palButtonsB     = (uint8_t)b; break;
-			default: break;
-		}
-
-		updatePaletteContrast();
-
-		showTopScreen(false);
-		showBottomScreen();
-
-		drawCurrentPaletteColor();
-	}
-}
-
-void sbPalContrastPos(uint32_t pos)
-{
-	uint8_t paletteEntry, update;
-
-	if (config.cfg_StdPalNr != PAL_USER_DEFINED)
-		return;
-
-	update = false;
-
-	paletteEntry = getCurrentPaletteEntry();
-	if (paletteEntry == PAL_DESKTOP)
-	{
-		if ((int8_t)pos != editor.ui.desktopContrast)
-		{
-			editor.ui.desktopContrast = (int8_t)pos;
-			update = true;
-		}
-	}
-	else if (paletteEntry == PAL_BUTTONS)
-	{
-		if ((int8_t)pos != editor.ui.buttonContrast)
-		{
-			editor.ui.buttonContrast = (int8_t)pos;
-			update = true;
-		}
-	}
-
-	updatePaletteContrast();
-
-	if (update)
-	{
-		showTopScreen(false);
-		showBottomScreen();
-	}
-}
-
-void configPalRDown(void)
-{
-	uint8_t paletteEntry;
-	int16_t r;
-	uint32_t *pixel;
-
-	paletteEntry = getCurrentPaletteEntry();
-	pixel = &video.palette[paletteEntry];
-
-	r = P8_TO_P6(RGB_R(*pixel));
-	if (r == 0)
-		return;
-
-	r--;
-
-	*pixel &= 0x00FFFF;
-	*pixel |= (P6_TO_P8(r) << 16);
-
-	switch (paletteEntry)
-	{
-		case PAL_PATTEXT:
-		{
-			config.palPattTextR = (uint8_t)r;
-			updateLoopPinPalette();
-		}
-		break;
-
-		case PAL_BLCKMRK: config.palBlockMarkR   = (uint8_t)r; break;
-		case PAL_BLCKTXT: config.palTextOnBlockR = (uint8_t)r; break;
-		case PAL_MOUSEPT: config.palMouseR       = (uint8_t)r; break;
-		case PAL_DESKTOP: config.palDesktopR     = (uint8_t)r; break;
-		case PAL_BUTTONS: config.palButtonsR     = (uint8_t)r; break;
-		default: break;
-	}
-
-	updatePaletteContrast();
-
-	showTopScreen(false);
-	showBottomScreen();
-
-	drawCurrentPaletteColor();
-}
-
-void configPalRUp(void)
-{
-	uint8_t paletteEntry;
-	int16_t r;
-	uint32_t *pixel;
-
-	paletteEntry = getCurrentPaletteEntry();
-	pixel = &video.palette[paletteEntry];
-
-	r = P8_TO_P6(RGB_R(*pixel));
-	if (r >= 63)
-		return;
-
-	r++;
-
-	*pixel &= 0x00FFFF;
-	*pixel |= (P6_TO_P8(r) << 16);
-
-	switch (paletteEntry)
-	{
-		case PAL_PATTEXT:
-		{
-			config.palPattTextR = (uint8_t)r;
-			updateLoopPinPalette();
-		}
-		break;
-
-		case PAL_BLCKMRK: config.palBlockMarkR   = (uint8_t)r; break;
-		case PAL_BLCKTXT: config.palTextOnBlockR = (uint8_t)r; break;
-		case PAL_MOUSEPT: config.palMouseR       = (uint8_t)r; break;
-		case PAL_DESKTOP: config.palDesktopR     = (uint8_t)r; break;
-		case PAL_BUTTONS: config.palButtonsR     = (uint8_t)r; break;
-		default: break;
-	}
-
-	updatePaletteContrast();
-
-	showTopScreen(false);
-	showBottomScreen();
-
-	drawCurrentPaletteColor();
-}
-
-void configPalGDown(void)
-{
-	uint8_t paletteEntry;
-	int16_t g;
-	uint32_t *pixel;
-
-	paletteEntry = getCurrentPaletteEntry();
-	pixel = &video.palette[paletteEntry];
-
-	g = P8_TO_P6(RGB_G(*pixel));
-	if (g == 0)
-		return;
-
-	g--;
-
-	*pixel &= 0xFF00FF;
-	*pixel |= (P6_TO_P8(g) << 8);
-
-	switch (paletteEntry)
-	{
-		case PAL_PATTEXT:
-		{
-			config.palPattTextG = (uint8_t)g;
-			updateLoopPinPalette();
-		}
-		break;
-
-		case PAL_BLCKMRK: config.palBlockMarkG   = (uint8_t)g; break;
-		case PAL_BLCKTXT: config.palTextOnBlockG = (uint8_t)g; break;
-		case PAL_MOUSEPT: config.palMouseG       = (uint8_t)g; break;
-		case PAL_DESKTOP: config.palDesktopG     = (uint8_t)g; break;
-		case PAL_BUTTONS: config.palButtonsG     = (uint8_t)g; break;
-		default: break;
-	}
-
-	updatePaletteContrast();
-
-	showTopScreen(false);
-	showBottomScreen();
-
-	drawCurrentPaletteColor();
-}
-
-void configPalGUp(void)
-{
-	uint8_t paletteEntry;
-	int16_t g;
-	uint32_t *pixel;
-
-	paletteEntry = getCurrentPaletteEntry();
-	pixel = &video.palette[paletteEntry];
-
-	g = P8_TO_P6(RGB_G(*pixel));
-	if (g >= 64)
-		return;
-
-	g++;
-
-	*pixel &= 0xFF00FF;
-	*pixel |= (P6_TO_P8(g) << 8);
-
-	switch (paletteEntry)
-	{
-		case PAL_PATTEXT:
-		{
-			config.palPattTextG = (uint8_t)g;
-			updateLoopPinPalette();
-		}
-		break;
-
-		case PAL_BLCKMRK: config.palBlockMarkG   = (uint8_t)g; break;
-		case PAL_BLCKTXT: config.palTextOnBlockG = (uint8_t)g; break;
-		case PAL_MOUSEPT: config.palMouseG       = (uint8_t)g; break;
-		case PAL_DESKTOP: config.palDesktopG     = (uint8_t)g; break;
-		case PAL_BUTTONS: config.palButtonsG     = (uint8_t)g; break;
-		default: break;
-	}
-
-	updatePaletteContrast();
-
-	showTopScreen(false);
-	showBottomScreen();
-
-	drawCurrentPaletteColor();
-}
-
-void configPalBDown(void)
-{
-	uint8_t paletteEntry;
-	int16_t b;
-	uint32_t *pixel;
-
-	paletteEntry = getCurrentPaletteEntry();
-	pixel = &video.palette[paletteEntry];
-
-	b = P8_TO_P6(RGB_B(*pixel));
-	if (b == 0)
-		return;
-
-	b--;
-
-	*pixel &= 0xFFFF00;
-	*pixel |= P6_TO_P8(b);
-
-	switch (paletteEntry)
-	{
-		case PAL_PATTEXT:
-		{
-			config.palPattTextB = (uint8_t)b;
-			updateLoopPinPalette();
-		}
-		break;
-
-		case PAL_BLCKMRK: config.palBlockMarkB   = (uint8_t)b; break;
-		case PAL_BLCKTXT: config.palTextOnBlockB = (uint8_t)b; break;
-		case PAL_MOUSEPT: config.palMouseB       = (uint8_t)b; break;
-		case PAL_DESKTOP: config.palDesktopB     = (uint8_t)b; break;
-		case PAL_BUTTONS: config.palButtonsB     = (uint8_t)b; break;
-		default: break;
-	}
-
-	updatePaletteContrast();
-
-	showTopScreen(false);
-	showBottomScreen();
-
-	drawCurrentPaletteColor();
-}
-
-void configPalBUp(void)
-{
-	uint8_t paletteEntry;
-	int16_t b;
-	uint32_t *pixel;
-
-	paletteEntry = getCurrentPaletteEntry();
-	pixel = &video.palette[paletteEntry];
-
-	b = P8_TO_P6(RGB_B(*pixel));
-	if (b >= 64)
-		return;
-
-	b++;
-
-	*pixel &= 0xFFFF00;
-	*pixel |= P6_TO_P8(b);
-
-	switch (paletteEntry)
-	{
-		case PAL_PATTEXT:
-		{
-			config.palPattTextB = (uint8_t)b;
-			updateLoopPinPalette();
-		}
-		break;
-
-		case PAL_BLCKMRK: config.palBlockMarkB   = (uint8_t)b; break;
-		case PAL_BLCKTXT: config.palTextOnBlockB = (uint8_t)b; break;
-		case PAL_MOUSEPT: config.palMouseB       = (uint8_t)b; break;
-		case PAL_DESKTOP: config.palDesktopB     = (uint8_t)b; break;
-		case PAL_BUTTONS: config.palButtonsB     = (uint8_t)b; break;
-		default: break;
-	}
-
-	updatePaletteContrast();
-
-	showTopScreen(false);
-	showBottomScreen();
-
-	drawCurrentPaletteColor();
-}
-
-void configPalContDown(void)
-{
-	bool update;
-
-	update = false;
-
-	if (editor.currPaletteEdit == 4)
-	{
-		if (editor.ui.desktopContrast > 0)
-		{
-			editor.ui.desktopContrast--;
-			update = true;
-		}
-	}
-	else if (editor.currPaletteEdit == 5)
-	{
-		if (editor.ui.buttonContrast > 0)
-		{
-			editor.ui.buttonContrast--;
-			update = true;
-		}
-	}
-
-	updatePaletteContrast();
-
-	if (update)
-	{
-		showTopScreen(false);
-		showBottomScreen();
-	}
-}
-
-void configPalContUp(void)
-{
-	bool update;
-
-	update = false;
-
-	if (editor.currPaletteEdit == 4)
-	{
-		if (editor.ui.desktopContrast < 100)
-		{
-			editor.ui.desktopContrast++;
-			update = true;
-		}
-	}
-	else if (editor.currPaletteEdit == 5)
-	{
-		if (editor.ui.buttonContrast < 100)
-		{
-			editor.ui.buttonContrast++;
-			update = true;
-		}
-	}
-
-	updatePaletteContrast();
-
-	if (update)
-	{
-		showTopScreen(false);
-		showBottomScreen();
-	}
 }
 
 void cbSampCutToBuff(void)
@@ -2871,17 +2066,17 @@ void configMIDITransDown(void)
 
 void configMIDISensDown(void)
 {
-	scrollBarScrollUp(SB_MIDI_SENS, 1);
+	scrollBarScrollLeft(SB_MIDI_SENS, 1);
 }
 
 void configMIDISensUp(void)
 {
-	scrollBarScrollDown(SB_MIDI_SENS, 1);
+	scrollBarScrollRight(SB_MIDI_SENS, 1);
 }
 
 void sbMIDISens(uint32_t pos)
 {
-	if ((int16_t)pos != config.recMIDIVolSens)
+	if (config.recMIDIVolSens != (int16_t)pos)
 	{
 		config.recMIDIVolSens = (int16_t)pos;
 		drawMIDISens();
@@ -2890,49 +2085,45 @@ void sbMIDISens(uint32_t pos)
 
 void sbAmp(uint32_t pos)
 {
-	config.boostLevel = (int8_t)pos + 1;
-	setAudioAmp(config.boostLevel, config.masterVol, config.specialFlags & BITDEPTH_24);
-	configDrawAmp();
-	updateWavRendererSettings();
+	if (config.boostLevel != (int8_t)pos + 1)
+	{
+		config.boostLevel = (int8_t)pos + 1;
+		setAudioAmp(config.boostLevel, config.masterVol, config.specialFlags & BITDEPTH_24);
+		configDrawAmp();
+		updateWavRendererSettings();
+	}
 }
 
 void configAmpDown(void)
 {
-	if (config.boostLevel > 1)
-	{
-		scrollBarScrollUp(SB_AMP_SCROLL, 1);
-		updateWavRendererSettings();
-	}
+	scrollBarScrollLeft(SB_AMP_SCROLL, 1);
 }
 
 void configAmpUp(void)
 {
-	if (config.boostLevel < 32)
-	{
-		scrollBarScrollDown(SB_AMP_SCROLL, 1);
-		updateWavRendererSettings();
-	}
+	scrollBarScrollRight(SB_AMP_SCROLL, 1);
 }
 
 void sbMasterVol(uint32_t pos)
 {
-	config.masterVol = (int16_t)pos;
-	setAudioAmp(config.boostLevel, config.masterVol, config.specialFlags & BITDEPTH_24);
+	if (config.masterVol != (int16_t)pos)
+	{
+		config.masterVol = (int16_t)pos;
+		setAudioAmp(config.boostLevel, config.masterVol, config.specialFlags & BITDEPTH_24);
+	}
 }
 
 void configMasterVolDown(void)
 {
-	if (config.masterVol > 0)
-		scrollBarScrollUp(SB_MASTERVOL_SCROLL, 1);
+	scrollBarScrollLeft(SB_MASTERVOL_SCROLL, 1);
 }
 
 void configMasterVolUp(void)
 {
-	if (config.masterVol < 256)
-		scrollBarScrollDown(SB_MASTERVOL_SCROLL, 1);
+	scrollBarScrollRight(SB_MASTERVOL_SCROLL, 1);
 }
 
-// default FT2.CFG (unencrypted, and some settings changed)
+// default FT2 clone FT2.CFG (unencrypted)
 const uint8_t defConfigData[CONFIG_FILE_SIZE] =
 {
 	0x46,0x61,0x73,0x74,0x54,0x72,0x61,0x63,0x6B,0x65,0x72,0x20,0x32,0x2E,0x30,0x20,0x63,0x6F,0x6E,0x66,

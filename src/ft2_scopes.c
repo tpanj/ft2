@@ -148,13 +148,13 @@ void stopAllScopes(void)
 }
 
 // toggle mute
-static void setChannel(uint8_t nr, bool on)
+static void setChannel(int16_t nr, bool on)
 {
 	stmTyp *ch;
 
 	ch = &stm[nr];
 
-	ch->stOff = on ? false : true;
+	ch->stOff = !on;
 	if (ch->stOff)
 	{
 		ch->effTyp = 0;
@@ -187,7 +187,7 @@ static void drawScopeNumber(uint16_t scopeXOffs, uint16_t scopeYOffs, uint8_t ch
 		}
 		else
 		{
-			charOutOutlined(scopeXOffs,     scopeYOffs, PAL_MOUSEPT, '0' + (channel / 10));
+			charOutOutlined(scopeXOffs, scopeYOffs, PAL_MOUSEPT, '0' + (channel / 10));
 			charOutOutlined(scopeXOffs + 7, scopeYOffs, PAL_MOUSEPT, '0' + (channel % 10));
 		}
 	}
@@ -199,17 +199,16 @@ static void drawScopeNumber(uint16_t scopeXOffs, uint16_t scopeYOffs, uint8_t ch
 		}
 		else
 		{
-			charOut(scopeXOffs,     scopeYOffs, PAL_MOUSEPT, '0' + (channel / 10));
+			charOut(scopeXOffs, scopeYOffs, PAL_MOUSEPT, '0' + (channel / 10));
 			charOut(scopeXOffs + 7, scopeYOffs, PAL_MOUSEPT, '0' + (channel % 10));
 		}
 	}
 }
 
-static void redrawScope(uint8_t ch)
+static void redrawScope(int16_t ch)
 {
-	int8_t chansPerRow;
-	uint8_t i, chanLookup;
-	int16_t scopeLen, muteGfxLen, muteGfxX;
+	uint8_t chansPerRow;
+	int16_t i, chanLookup, scopeLen, muteGfxLen, muteGfxX;
 	const uint16_t *scopeLens;
 	uint16_t x, y;
 
@@ -242,7 +241,7 @@ static void redrawScope(uint8_t ch)
 	drawFramework(x, y, scopeLen + 2, 38, FRAMEWORK_TYPE2);
 
 	// draw mute graphics if channel is muted
-	if (editor.channelMute[i])
+	if (!editor.chnMode[i])
 	{
 		muteGfxLen = scopeMuteBMPWidths[chanLookup];
 		muteGfxX = x + ((scopeLen - muteGfxLen) / 2);
@@ -250,47 +249,84 @@ static void redrawScope(uint8_t ch)
 		blitFast(muteGfxX, y + 6, scopeMuteBMPPointers[chanLookup], muteGfxLen, scopeMuteBMPHeights[chanLookup]);
 
 		if (config.ptnChnNumbers)
-			drawScopeNumber(x + 1, y + 1, i, true);
+			drawScopeNumber(x + 1, y + 1, (uint8_t)i, true);
 	}
 
 	scope[ch].wasCleared = false;
 }
 
-void unmuteAllChansOnMusicLoad(void)
+void refreshScopes(void)
 {
-	for (uint8_t i = 0; i < MAX_VOICES; i++)
+	for (int16_t i = 0; i < MAX_VOICES; i++)
+		scope[i].wasCleared = false;
+}
+
+static void channelMode(int16_t chn)
+{
+	bool m, m2, test;
+	int16_t i;
+	
+	assert(chn < song.antChn);
+
+	m = mouse.leftButtonPressed && !mouse.rightButtonPressed;
+	m2 = mouse.rightButtonPressed && mouse.leftButtonPressed;
+
+	if (m2)
 	{
-		editor.channelMute[i] = false;
-		scope[i].wasCleared   = false;
+		test = false;
+		for (i = 0; i < song.antChn; i++)
+		{
+			if (i != chn && !editor.chnMode[i])
+				test = true;
+		}
+
+		if (test)
+		{
+			for (i = 0; i < song.antChn; i++)
+				editor.chnMode[i] = true;
+		}
+		else
+		{
+			for (i = 0; i < song.antChn; i++)
+				editor.chnMode[i] = (i == chn);
+		}
 	}
-}
+	else if (m)
+	{
+		editor.chnMode[chn] ^= 1;
+	}
+	else
+	{
+		if (editor.chnMode[chn])
+		{
+			config.multiRecChn[chn] ^= 1;
+		}
+		else
+		{
+			config.multiRecChn[chn] = true;
+			editor.chnMode[chn] = true;
+			m = true;
+		}
+	}
 
-static void muteChannel(uint8_t ch)
-{
-	editor.channelMute[ch] = true;
-	setChannel(ch, false);
-	redrawScope(ch);
-}
+	for (i = 0; i < song.antChn; i++)
+		setChannel(i, editor.chnMode[i]);
 
-static void unmuteChannel(uint8_t ch)
-{
-	editor.channelMute[ch] = false;
-	setChannel(ch, true);
-	redrawScope(ch);
-}
-
-static void toggleChannelMute(uint8_t ch)
-{
-	editor.channelMute[ch] ^= 1;
-	setChannel(ch, !editor.channelMute[ch]);
-	redrawScope(ch);
+	if (m2)
+	{
+		for (i = 0; i < song.antChn; i++)
+			redrawScope(i);
+	}
+	else
+	{
+		redrawScope(chn);
+	}
 }
 
 bool testScopesMouseDown(void)
 {
-	bool test;
-	int8_t chanToToggle, chansPerRow;
-	uint8_t i;
+	int8_t chanToToggle;
+	uint8_t i, chansPerRow;
 	uint16_t x;
 	const uint16_t *scopeLens;
 
@@ -303,7 +339,7 @@ bool testScopesMouseDown(void)
 			return true;
 
 		chansPerRow = song.antChn / 2;
-		scopeLens = scopeLenTab[chansPerRow - 1];
+		scopeLens = scopeLenTab[chansPerRow-1];
 
 		// find out if we clicked inside a scope
 		x = 3;
@@ -322,44 +358,7 @@ bool testScopesMouseDown(void)
 		if (mouse.y >= 134) // second row of scopes?
 			chanToToggle += chansPerRow; // yes, increase lookup offset
 
-		assert(chanToToggle < song.antChn);
-
-		if (mouse.leftButtonPressed && mouse.rightButtonPressed)
-		{
-			test = false;
-			for (i = 0; i < song.antChn; i++)
-			{
-				if (i != chanToToggle && editor.channelMute[i])
-					test = true;
-			}
-
-			if (test)
-			{
-				for (i = 0; i < song.antChn; i++)
-					unmuteChannel(i);
-			}
-			else
-			{
-				for (i = 0; i < song.antChn; i++)
-				{
-					if (i == chanToToggle)
-						unmuteChannel(i);
-					else
-						muteChannel(i);
-				}
-			}
-		}
-		else if (mouse.leftButtonPressed && !mouse.rightButtonPressed)
-		{
-			toggleChannelMute(chanToToggle);
-		}
-		else
-		{
-			// toggle channel recording
-			config.multiRecChn[chanToToggle] ^= 1;
-			redrawScope(chanToToggle);
-		}
-
+		channelMode(chanToToggle);
 		return true;
 	}
 
@@ -627,23 +626,24 @@ void drawScopes(void)
 {
 	int16_t y1, y2, sample, scopeLineY;
 	const uint16_t *scopeLens;
-	uint16_t x16, scopeXOffs, scopeYOffs, scopeDrawLen;
+	uint16_t chansPerRow, x16, scopeXOffs, scopeYOffs, scopeDrawLen;
 	int32_t scopeDrawPos, loopOverflowVal;
 	uint32_t x, len, drawPosXOR, scopeDrawFrac, scopePixelColor;
 	volatile scope_t *sc;
 	scope_t s;
 
 	scopesDisplayingFlag = true;
+	chansPerRow = song.antChn / 2;
 
-	scopeLens = scopeLenTab[(song.antChn / 2) - 1];
+	scopeLens = scopeLenTab[chansPerRow-1];
 	scopeXOffs = 3;
 	scopeYOffs = 95;
 	scopeLineY = 112;
 
-	for (int32_t i = 0; i < song.antChn; i++)
+	for (int16_t i = 0; i < song.antChn; i++)
 	{
-		// check if we are at the bottom row
-		if (i == song.antChn/2)
+		// if we reached the last channel on the row, go to bottom left
+		if (i == chansPerRow)
 		{
 			scopeXOffs = 3;
 			scopeYOffs = 134;
@@ -652,7 +652,7 @@ void drawScopes(void)
 
 		scopeDrawLen = scopeLens[i];
 
-		if (!editor.channelMute[i])
+		if (editor.chnMode[i])
 		{
 			s = scope[i]; // cache scope to lower thread race condition issues
 
@@ -783,7 +783,6 @@ void drawScopeFramework(void)
 void handleScopesFromChQueue(chSyncData_t *chSyncData, uint8_t *scopeUpdateStatus)
 {
 	uint8_t status;
-	double dFrq;
 	syncedChannel_t *ch;
 	volatile scope_t *sc;
 	sampleTyp *smpPtr;
@@ -796,7 +795,7 @@ void handleScopesFromChQueue(chSyncData_t *chSyncData, uint8_t *scopeUpdateStatu
 
 		// set scope volume
 		if (status & IS_Vol)
-			sc->SVol = (int8_t)(((uint32_t)ch->finalVol * SCOPE_DATA_HEIGHT) >> 11);
+			sc->SVol = (int8_t)((ch->finalVol * SCOPE_DATA_HEIGHT) >> 11);
 
 		// set scope frequency
 		if (status & IS_Period)
@@ -804,8 +803,7 @@ void handleScopesFromChQueue(chSyncData_t *chSyncData, uint8_t *scopeUpdateStatu
 			if (ch->voiceDelta != oldVoiceDelta)
 			{
 				oldVoiceDelta = ch->voiceDelta;
-				dFrq = oldVoiceDelta * audio.dScopeFreqMul;
-				double2int32_round(oldSFrq, dFrq);
+				oldSFrq = (uint32_t)((oldVoiceDelta * audio.dScopeFreqMul) + 0.5);
 			}
 
 			sc->SFrq = oldSFrq;
@@ -814,16 +812,19 @@ void handleScopesFromChQueue(chSyncData_t *chSyncData, uint8_t *scopeUpdateStatu
 		// start scope sample
 		if (status & IS_NyTon)
 		{
-			smpPtr = &instr[ch->instrNr].samp[ch->sampleNr];
-			scopeTrigger((uint8_t)i, smpPtr, ch->smpStartPos);
+			if (instr[ch->instrNr] != NULL)
+			{
+				smpPtr = &instr[ch->instrNr]->samp[ch->sampleNr];
+				scopeTrigger((uint8_t)i, smpPtr, ch->smpStartPos);
 
-			// set stuff used by Smp. Ed. for sampling position line
+				// set stuff used by Smp. Ed. for sampling position line
 
-			if (ch->instrNr == MAX_INST+1 || (ch->instrNr == editor.curInstr && ch->sampleNr == editor.curSmp))
-				editor.curSmpChannel = (uint8_t)i;
+				if (ch->instrNr == 130 || (ch->instrNr == editor.curInstr && ch->sampleNr == editor.curSmp))
+					editor.curSmpChannel = (uint8_t)i;
 
-			lastChInstr[i].instrNr = ch->instrNr;
-			lastChInstr[i].sampleNr = ch->sampleNr;
+				lastChInstr[i].instrNr = ch->instrNr;
+				lastChInstr[i].sampleNr = ch->sampleNr;
+			}
 		}
 	}
 }
@@ -833,7 +834,6 @@ static int32_t SDLCALL scopeThreadFunc(void *ptr)
 	int32_t time32;
 	uint32_t diff32;
 	uint64_t time64;
-	double dTime;
 
 	(void)ptr;
 
@@ -857,8 +857,7 @@ static int32_t SDLCALL scopeThreadFunc(void *ptr)
 			diff32 = (uint32_t)(timeNext64 - time64);
 
 			// convert to microseconds and round to integer
-			dTime = diff32 * editor.dPerfFreqMulMicro;
-			double2int32_round(time32, dTime);
+			time32 = (int32_t)((diff32 * editor.dPerfFreqMulMicro) + 0.5);
 
 			// delay until we have reached next tick
 			if (time32 > 0)
@@ -893,7 +892,7 @@ bool initScopes(void)
 	dFrac *= UINT32_MAX + 1.0;
 	if (dFrac > (double)UINT32_MAX)
 		dFrac = (double)UINT32_MAX;
-	double2int32_round(scopeTimeLenFrac, dFrac);
+	scopeTimeLenFrac = (uint32_t)round(dFrac);
 
 	scopeThread = SDL_CreateThread(scopeThreadFunc, NULL, NULL);
 	if (scopeThread == NULL)

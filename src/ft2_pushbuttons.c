@@ -28,6 +28,7 @@
 #include "ft2_mouse.h"
 #include "ft2_edit.h"
 #include "ft2_sample_ed_features.h"
+#include "ft2_palette.h"
 
 pushButton_t pushButtons[NUM_PUSHBUTTONS] =
 {

@@ -15,6 +15,8 @@
 #include <direct.h>
 #include <shlobj.h> // SHGetFolderPathW()
 #else
+#include <sys/types.h>
+#include <sys/stat.h>
 #include <fts.h> // for fts_open() and stuff in recursiveDelete()
 #include <unistd.h>
 #include <dirent.h>
@@ -177,17 +179,17 @@ static void setupInitialPaths(void)
 	// the UNICHAR paths are already zeroed out
 
 #ifdef _WIN32
-	if (config.modulesPath[1]  != '\0') MultiByteToWideChar(CP_ACP, MB_PRECOMPOSED, &config.modulesPath[1],  -1, FReq_ModCurPathU, 80);
-	if (config.instrPath[1]    != '\0') MultiByteToWideChar(CP_ACP, MB_PRECOMPOSED, &config.instrPath[1],    -1, FReq_InsCurPathU, 80);
-	if (config.samplesPath[1]  != '\0') MultiByteToWideChar(CP_ACP, MB_PRECOMPOSED, &config.samplesPath[1],  -1, FReq_SmpCurPathU, 80);
-	if (config.patternsPath[1] != '\0') MultiByteToWideChar(CP_ACP, MB_PRECOMPOSED, &config.patternsPath[1], -1, FReq_PatCurPathU, 80);
-	if (config.tracksPath[1]   != '\0') MultiByteToWideChar(CP_ACP, MB_PRECOMPOSED, &config.tracksPath[1],   -1, FReq_TrkCurPathU, 80);
+	if (config.modulesPath[0]  != '\0') MultiByteToWideChar(CP_ACP, MB_PRECOMPOSED, config.modulesPath, -1, FReq_ModCurPathU, 80);
+	if (config.instrPath[0]    != '\0') MultiByteToWideChar(CP_ACP, MB_PRECOMPOSED, config.instrPath, -1, FReq_InsCurPathU, 80);
+	if (config.samplesPath[0]  != '\0') MultiByteToWideChar(CP_ACP, MB_PRECOMPOSED, config.samplesPath, -1, FReq_SmpCurPathU, 80);
+	if (config.patternsPath[0] != '\0') MultiByteToWideChar(CP_ACP, MB_PRECOMPOSED, config.patternsPath, -1, FReq_PatCurPathU, 80);
+	if (config.tracksPath[0]   != '\0') MultiByteToWideChar(CP_ACP, MB_PRECOMPOSED, config.tracksPath, -1, FReq_TrkCurPathU, 80);
 #else
-	if (config.modulesPath[1]  != '\0') strncpy(FReq_ModCurPathU, &config.modulesPath[1],  80);
-	if (config.instrPath[1]    != '\0') strncpy(FReq_InsCurPathU, &config.instrPath[1],    80);
-	if (config.samplesPath[1]  != '\0') strncpy(FReq_SmpCurPathU, &config.samplesPath[1],  80);
-	if (config.patternsPath[1] != '\0') strncpy(FReq_PatCurPathU, &config.patternsPath[1], 80);
-	if (config.tracksPath[1]   != '\0') strncpy(FReq_TrkCurPathU, &config.tracksPath[1],   80);
+	if (config.modulesPath[0]  != '\0') strncpy(FReq_ModCurPathU, config.modulesPath, 80);
+	if (config.instrPath[0]    != '\0') strncpy(FReq_InsCurPathU, config.instrPath, 80);
+	if (config.samplesPath[0]  != '\0') strncpy(FReq_SmpCurPathU, config.samplesPath, 80);
+	if (config.patternsPath[0] != '\0') strncpy(FReq_PatCurPathU, config.patternsPath, 80);
+	if (config.tracksPath[0]   != '\0') strncpy(FReq_TrkCurPathU, config.tracksPath, 80);
 #endif
 
 	// set initial path to user directory
@@ -241,35 +243,35 @@ void freeDiskOp(void)
 		editor.tmpInstrFilenameU = NULL;
 	}
 
-	if (modTmpFName      != NULL) { free(modTmpFName);      modTmpFName      = NULL; }
-	if (insTmpFName      != NULL) { free(insTmpFName);      insTmpFName      = NULL; }
-	if (smpTmpFName      != NULL) { free(smpTmpFName);      smpTmpFName      = NULL; }
-	if (patTmpFName      != NULL) { free(patTmpFName);      patTmpFName      = NULL; }
-	if (trkTmpFName      != NULL) { free(trkTmpFName);      trkTmpFName      = NULL; }
-	if (FReq_NameTemp    != NULL) { free(FReq_NameTemp);    FReq_NameTemp    = NULL; }
+	if (modTmpFName != NULL) { free(modTmpFName); modTmpFName = NULL; }
+	if (insTmpFName != NULL) { free(insTmpFName); insTmpFName = NULL; }
+	if (smpTmpFName != NULL) { free(smpTmpFName); smpTmpFName = NULL; }
+	if (patTmpFName != NULL) { free(patTmpFName); patTmpFName = NULL; }
+	if (trkTmpFName != NULL) { free(trkTmpFName); trkTmpFName = NULL; }
+	if (FReq_NameTemp != NULL) { free(FReq_NameTemp); FReq_NameTemp = NULL; }
 	if (FReq_ModCurPathU != NULL) { free(FReq_ModCurPathU); FReq_ModCurPathU = NULL; }
 	if (FReq_InsCurPathU != NULL) { free(FReq_InsCurPathU); FReq_InsCurPathU = NULL; }
 	if (FReq_SmpCurPathU != NULL) { free(FReq_SmpCurPathU); FReq_SmpCurPathU = NULL; }
 	if (FReq_PatCurPathU != NULL) { free(FReq_PatCurPathU); FReq_PatCurPathU = NULL; }
 	if (FReq_TrkCurPathU != NULL) { free(FReq_TrkCurPathU); FReq_TrkCurPathU = NULL; }
-	if (modTmpFNameUTF8  != NULL) { free(modTmpFNameUTF8);  modTmpFNameUTF8  = NULL; }
+	if (modTmpFNameUTF8 != NULL) { free(modTmpFNameUTF8); modTmpFNameUTF8 = NULL; }
 
 	freeDirRecBuffer();
 }
 
 bool setupDiskOp(void)
 {
-	modTmpFName      =    (char *)(calloc(PATH_MAX + 1, sizeof (char)));
-	insTmpFName      =    (char *)(calloc(PATH_MAX + 1, sizeof (char)));
-	smpTmpFName      =    (char *)(calloc(PATH_MAX + 1, sizeof (char)));
-	patTmpFName      =    (char *)(calloc(PATH_MAX + 1, sizeof (char)));
-	trkTmpFName      =    (char *)(calloc(PATH_MAX + 1, sizeof (char)));
-	FReq_NameTemp    =    (char *)(calloc(PATH_MAX + 1, sizeof (char)));
-	FReq_ModCurPathU = (UNICHAR *)(calloc(PATH_MAX + 2, sizeof (UNICHAR)));
-	FReq_InsCurPathU = (UNICHAR *)(calloc(PATH_MAX + 2, sizeof (UNICHAR)));
-	FReq_SmpCurPathU = (UNICHAR *)(calloc(PATH_MAX + 2, sizeof (UNICHAR)));
-	FReq_PatCurPathU = (UNICHAR *)(calloc(PATH_MAX + 2, sizeof (UNICHAR)));
-	FReq_TrkCurPathU = (UNICHAR *)(calloc(PATH_MAX + 2, sizeof (UNICHAR)));
+	modTmpFName = (char *)calloc(PATH_MAX + 1, sizeof (char));
+	insTmpFName = (char *)calloc(PATH_MAX + 1, sizeof (char));
+	smpTmpFName = (char *)calloc(PATH_MAX + 1, sizeof (char));
+	patTmpFName = (char *)calloc(PATH_MAX + 1, sizeof (char));
+	trkTmpFName = (char *)calloc(PATH_MAX + 1, sizeof (char));
+	FReq_NameTemp = (char *)calloc(PATH_MAX + 1, sizeof (char));
+	FReq_ModCurPathU = (UNICHAR *)calloc(PATH_MAX + 2, sizeof (UNICHAR));
+	FReq_InsCurPathU = (UNICHAR *)calloc(PATH_MAX + 2, sizeof (UNICHAR));
+	FReq_SmpCurPathU = (UNICHAR *)calloc(PATH_MAX + 2, sizeof (UNICHAR));
+	FReq_PatCurPathU = (UNICHAR *)calloc(PATH_MAX + 2, sizeof (UNICHAR));
+	FReq_TrkCurPathU = (UNICHAR *)calloc(PATH_MAX + 2, sizeof (UNICHAR));
 
 	if (modTmpFName      == NULL || insTmpFName      == NULL || smpTmpFName      == NULL ||
 		patTmpFName      == NULL || trkTmpFName      == NULL || FReq_NameTemp    == NULL ||
@@ -1221,7 +1223,7 @@ static uint8_t handleEntrySkip(UNICHAR *nameU, bool isDir)
 	if (isDir)
 	{
 		// skip '.' directory
-		if (name[0] == '.' && name[1] == '\0')
+		if (nameLen == 1 && name[0] == '.')
 		{
 			free(name);
 			return true;
@@ -1395,6 +1397,10 @@ static int8_t findFirst(DirRec *searchRec)
 	int64_t fSize;
 #endif
 
+#if defined(__sun) || defined(sun)
+	struct stat s;
+#endif
+
 	searchRec->nameU = NULL; // this one must be initialized
 
 #ifdef _WIN32
@@ -1422,9 +1428,19 @@ static int8_t findFirst(DirRec *searchRec)
 		return LFF_SKIP;
 
 	searchRec->filesize = 0;
-	searchRec->isDir = (fData->d_type == DT_DIR) ? true : false;
 
+#if defined(__sun) || defined(sun)
+	stat(fData->d_name, &s);
+	searchRec->isDir = (s.st_mode != S_IFDIR) ? true : false;
+#else
+	searchRec->isDir = (fData->d_type == DT_DIR) ? true : false;
+#endif
+
+#if defined(__sun) || defined(sun)
+	if (s.st_mode == S_IFLNK)
+#else
 	if (fData->d_type == DT_UNKNOWN || fData->d_type == DT_LNK)
+#endif
 	{
 		if (stat(fData->d_name, &st) == 0)
 		{
@@ -1467,6 +1483,10 @@ static int8_t findNext(DirRec *searchRec)
 	int64_t fSize;
 #endif
 
+#if defined(__sun) || defined(sun)
+	struct stat s;
+#endif
+
 	searchRec->nameU = NULL; // important
 
 #ifdef _WIN32
@@ -1488,9 +1508,19 @@ static int8_t findNext(DirRec *searchRec)
 		return LFF_SKIP;
 
 	searchRec->filesize = 0;
-	searchRec->isDir = (fData->d_type == DT_DIR) ? true : false;
 
+#if defined(__sun) || defined(sun)
+	stat(fData->d_name, &s);
+	searchRec->isDir = (s.st_mode != S_IFDIR) ? true : false;
+#else
+	searchRec->isDir = (fData->d_type == DT_DIR) ? true : false;
+#endif
+
+#if defined(__sun) || defined(sun)
+	if (s.st_mode == S_IFLNK)
+#else
 	if (fData->d_type == DT_UNKNOWN || fData->d_type == DT_LNK)
+#endif
 	{
 		if (stat(fData->d_name, &st) == 0)
 		{
@@ -1580,8 +1610,8 @@ static char *ach(int32_t rad) // used for sortDirectory()
 	{
 		// directory
 
-		if (!strcmp(name, ".."))
-			p[0] = 0x01; // make first priority
+		if (nameLen == 2 && name[0] == '.' && name[1] == '.')
+			p[0] = 0x01; // make ".." directory first priority
 		else
 			p[0] = 0x02; // make second priority
 
@@ -1597,26 +1627,26 @@ static char *ach(int32_t rad) // used for sortDirectory()
 		i = getExtOffset(name, nameLen);
 		if (config.cfg_SortPriority == 1 || i == -1)
 		{
+			// sort by filename
 			strcpy(p, name);
-
 			free(name);
 			return p;
 		}
 		else
 		{
-			extLen = (int32_t)strlen(&name[i]);
+			// sort by filename extension
+			extLen = nameLen - i;
 			if (extLen <= 1)
 			{
 				strcpy(p, name);
-
 				free(name);
 				return p;
 			}
 
-			// string = "[FILEEXT][FILENAME]"
-			memcpy(p, &name[i + 1], extLen - 1);
-			memcpy(&p[extLen - 1], name, i);
-			p[nameLen - 1] = '\0';
+			// FILENAME.EXT -> EXT.FILENAME (for sorting)
+			memcpy(p, &name[i+1], extLen - 1);
+			memcpy(&p[extLen-1], name, i);
+			p[nameLen-1] = '\0';
 
 			free(name);
 			return p;
@@ -1626,11 +1656,12 @@ static char *ach(int32_t rad) // used for sortDirectory()
 
 static void sortDirectory(void)
 {
+	bool didSwap;
 	char *p1, *p2;
-	int32_t offset, limit, swapped, i;
+	uint32_t offset, limit, i;
 
 	if (FReq_FileCount < 2)
-		return;
+		return; // no need to sort
 
 	offset = FReq_FileCount / 2;
 	while (offset > 0)
@@ -1638,35 +1669,37 @@ static void sortDirectory(void)
 		limit = FReq_FileCount - offset;
 		do
 		{
-			swapped = 0;
-			for (i = 1; i <= limit; i++)
+			didSwap = false;
+			for (i = 0; i < limit; i++)
 			{
-				p1 = ach(i - 1);
-				p2 = ach((i + offset) - 1);
+				p1 = ach(i);
+				p2 = ach(offset + i);
 
 				if (p1 == NULL || p2 == NULL)
 				{
 					if (p1 != NULL) free(p1);
 					if (p2 != NULL) free(p2);
-
-					freeDirRecBuffer();
 					okBox(0, "System message", "Not enough memory!");
 					return;
 				}
 
 				if (_stricmp(p1, p2) > 0)
 				{
-					if (!swapBufferEntry(i - 1 , (i + offset) - 1))
+					if (!swapBufferEntry(i, offset + i))
+					{
+						free(p1);
+						free(p2);
 						return;
+					}
 
-					swapped = i;
+					didSwap = true;
 				}
 
 				free(p1);
 				free(p2);
 			}
 		}
-		while (swapped != 0);
+		while (didSwap);
 
 		offset /= 2;
 	}
@@ -1690,10 +1723,9 @@ static uint8_t numDigits32(uint32_t x)
 static void printFormattedFilesize(uint16_t x, uint16_t y, uint32_t bufEntry)
 {
 	char sizeStrBuffer[16];
-	int32_t filesize;
+	int32_t filesize, printFilesize;
 
 	filesize = FReq_Buffer[bufEntry].filesize;
-	
 	if (filesize == -1)
 	{
 		x += 6;
@@ -1701,25 +1733,29 @@ static void printFormattedFilesize(uint16_t x, uint16_t y, uint32_t bufEntry)
 		return;
 	}
 
-	if (filesize < 0)
-		filesize = 0;
+	assert(filesize >= 0);
 
-	if (filesize >= 1000*1000*10) // >= 10MB?
+	if (filesize >= 1024*1024*10) // >= 10MB?
 	{
-		filesize /= 1000*1000;
-		x += (4 - numDigits32(filesize)) * 7;
-		sprintf(sizeStrBuffer, "%dM", filesize);
+forceMB:
+		printFilesize = (int32_t)ceil(filesize / (1024.0*1024.0));
+		x += (4 - numDigits32(printFilesize)) * (FONT1_CHAR_W - 1);
+		sprintf(sizeStrBuffer, "%dM", printFilesize);
 	}
-	else if (filesize >= 1000*10) // >= 10kB?
+	else if (filesize >= 1024*10) // >= 10kB?
 	{
-		filesize /= 1000;
-		x += (4 - numDigits32(filesize)) * 7;
-		sprintf(sizeStrBuffer, "%dk", filesize);
+		printFilesize = (int32_t)ceil(filesize / 1024.0);
+		if (printFilesize > 9999)
+			goto forceMB; // ceil visual overflow kludge
+
+		x += (4 - numDigits32(printFilesize)) * (FONT1_CHAR_W - 1);
+		sprintf(sizeStrBuffer, "%dk", printFilesize);
 	}
 	else // bytes
 	{
-		x += (5 - numDigits32(filesize)) * 7;
-		sprintf(sizeStrBuffer, "%d", filesize);
+		printFilesize = filesize;
+		x += (5 - numDigits32(printFilesize)) * (FONT1_CHAR_W - 1);
+		sprintf(sizeStrBuffer, "%d", printFilesize);
 	}
 
 	textOut(x, y, PAL_BLCKTXT, sizeStrBuffer);
@@ -1898,6 +1934,8 @@ static int32_t SDLCALL diskOp_ReadDirectoryThread(void *ptr)
 		FReq_Buffer = (DirRec *)malloc(sizeof (DirRec) * (FReq_FileCount + 1));
 		if (FReq_Buffer == NULL)
 		{
+			findClose();
+
 			okBoxThreadSafe(0, "System message", "Not enough memory!");
 
 			FReq_Buffer = bufferCreateEmptyDir();

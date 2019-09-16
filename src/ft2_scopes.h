@@ -1,5 +1,4 @@
-#ifndef __FT2_SCOPES_H
-#define __FT2_SCOPES_H
+#pragma once
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -8,7 +7,7 @@
 void resetOldScopeRates(void);
 int32_t getSamplePosition(uint8_t ch);
 void stopAllScopes(void);
-void unmuteAllChansOnMusicLoad(void);
+void refreshScopes(void);
 bool testScopesMouseDown(void);
 void drawScopes(void);
 void drawScopeFramework(void);
@@ -20,5 +19,3 @@ typedef struct lastChInstr_t
 } lastChInstr_t;
 
 extern lastChInstr_t lastChInstr[MAX_VOICES];
-
-#endif

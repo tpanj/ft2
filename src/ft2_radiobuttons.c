@@ -113,8 +113,8 @@ radioButton_t radioButtons[NUM_RADIOBUTTONS] =
 
 	// scope style
 	//x,   y,   w,  group,                 funcOnUp
-	{ 257, 158, 58, RB_GROUP_CONFIG_SCOPE, rbConfigScopeOriginal },
-	{ 323, 158, 47, RB_GROUP_CONFIG_SCOPE, rbConfigScopeLined },
+	{ 305, 145, 37, RB_GROUP_CONFIG_SCOPE, rbConfigScopeStandard },
+	{ 346, 145, 46, RB_GROUP_CONFIG_SCOPE, rbConfigScopeLined },
 
 	// visible pattern channels
 	//x,   y,   w,  group,                        funcOnUp

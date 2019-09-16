@@ -1,5 +1,4 @@
-#ifndef __FT2_CHECKBOXES_H
-#define __FT2_CHECKBOXES_H
+#pragma once
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -68,6 +67,7 @@ enum // CHECKBOXES
 	CB_CONF_LINECOLORS,
 	CB_CONF_CHANNUMS,
 	CB_CONF_SHOW_VOLCOL,
+	CB_CONF_HARDWARE_MOUSE,
 
 	// CONFIG MISCELLANEOUS
 	CB_CONF_SAMP_CUT_TO_BUF,
@@ -96,9 +96,9 @@ enum // CHECKBOXES
 enum
 {
 	CHECKBOX_UNPRESSED = 0,
-	CHECKBOX_PRESSED   = 1,
+	CHECKBOX_PRESSED = 1,
 	CHECKBOX_UNCHECKED = 0,
-	CHECKBOX_CHECKED   = 1
+	CHECKBOX_CHECKED = 1
 };
 
 #define CHECKBOX_W 13
@@ -121,5 +121,3 @@ void hideCheckBox(uint16_t checkBoxID);
 void handleCheckBoxesWhileMouseDown(void);
 bool testCheckBoxMouseDown(void);
 void testCheckBoxMouseRelease(void);
-
-#endif

@@ -1,5 +1,4 @@
-#ifndef __FT2_SYSREQS_H
-#define __FT2_SYSREQS_H
+#pragma once
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -16,5 +15,3 @@ struct
 	int16_t typ, returnData;
 	char *headline, *text;
 } okBoxData;
-
-#endif

@@ -971,9 +971,7 @@ void handlePatternDataMouseDown(bool mouseButtonHeld)
 
 void rowOneUpWrap(void)
 {
-	bool audioWasntLocked;
-
-	audioWasntLocked = !audio.locked;
+	bool audioWasntLocked = !audio.locked;
 	if (audioWasntLocked)
 		lockAudio();
 
@@ -990,9 +988,7 @@ void rowOneUpWrap(void)
 
 void rowOneDownWrap(void)
 {
-	bool audioWasntLocked;
-
-	audioWasntLocked = !audio.locked;
+	bool audioWasntLocked = !audio.locked;
 	if (audioWasntLocked)
 		lockAudio();
 
@@ -1013,9 +1009,7 @@ void rowOneDownWrap(void)
 
 void rowUp(uint16_t amount)
 {
-	bool audioWasntLocked;
-
-	audioWasntLocked = !audio.locked;
+	bool audioWasntLocked = !audio.locked;
 	if (audioWasntLocked)
 		lockAudio();
 
@@ -1035,9 +1029,7 @@ void rowUp(uint16_t amount)
 
 void rowDown(uint16_t amount)
 {
-	bool audioWasntLocked;
-
-	audioWasntLocked = !audio.locked;
+	bool audioWasntLocked = !audio.locked;
 	if (audioWasntLocked)
 		lockAudio();
 
@@ -1461,46 +1453,43 @@ bool savePattern(UNICHAR *filenameU)
 
 void scrollChannelLeft(void)
 {
-	scrollBarScrollUp(SB_CHAN_SCROLL, 1);
+	scrollBarScrollLeft(SB_CHAN_SCROLL, 1);
 }
 
 void scrollChannelRight(void)
 {
-	scrollBarScrollDown(SB_CHAN_SCROLL, 1);
+	scrollBarScrollRight(SB_CHAN_SCROLL, 1);
 }
 
 void setChannelScrollPos(uint32_t pos)
 {
-	if (editor.ui.channelOffset != pos)
+	if (!editor.ui.pattChanScrollShown)
 	{
-		if (!editor.ui.pattChanScrollShown)
-		{
-			editor.ui.channelOffset = 0;
-			return;
-		}
-
-		if (song.antChn > editor.ui.numChannelsShown) // should always happen
-		{
-			editor.ui.channelOffset = (uint8_t)pos;
-			if (editor.ui.channelOffset >= song.antChn-editor.ui.numChannelsShown)
-				editor.ui.channelOffset = song.antChn-editor.ui.numChannelsShown;
-
-			// make sure pattern cursor is not hidden!
-			while (editor.cursor.ch >= editor.ui.channelOffset+editor.ui.numChannelsShown)
-			{
-				editor.cursor.object = CURSOR_NOTE;
-				editor.cursor.ch--;
-			}
-
-			while (editor.cursor.ch < editor.ui.channelOffset)
-			{
-				editor.cursor.object = CURSOR_NOTE;
-				editor.cursor.ch++;
-			}
-
-			editor.ui.updatePatternEditor = true;
-		}
+		editor.ui.channelOffset = 0;
+		return;
 	}
+
+	if (editor.ui.channelOffset == (uint8_t)pos)
+		return;
+
+	editor.ui.channelOffset = (uint8_t)pos;
+
+	assert(song.antChn > editor.ui.numChannelsShown);
+	if (editor.ui.channelOffset >= song.antChn-editor.ui.numChannelsShown)
+		editor.ui.channelOffset = song.antChn-editor.ui.numChannelsShown;
+
+	if (editor.cursor.ch >= editor.ui.channelOffset+editor.ui.numChannelsShown)
+	{
+		editor.cursor.object = CURSOR_NOTE;
+		editor.cursor.ch = (editor.ui.channelOffset + editor.ui.numChannelsShown) - 1;
+	}
+	else if (editor.cursor.ch < editor.ui.channelOffset)
+	{
+		editor.cursor.object = CURSOR_NOTE;
+		editor.cursor.ch = editor.ui.channelOffset;
+	}
+
+	editor.ui.updatePatternEditor = true;
 }
 
 void jumpToChannel(uint8_t channel) // for ALT+q..i ALT+a..k
@@ -1509,34 +1498,25 @@ void jumpToChannel(uint8_t channel) // for ALT+q..i ALT+a..k
 		return;
 
 	channel %= song.antChn;
-	if (editor.cursor.ch != channel)
-	{
-		if (editor.ui.pattChanScrollShown && song.antChn > editor.ui.numChannelsShown)
-		{
-			if (channel >= editor.ui.channelOffset+editor.ui.numChannelsShown)
-			{
-				// scroll right if needed
-				while (channel >= editor.ui.channelOffset+editor.ui.numChannelsShown)
-					scrollBarScrollDown(SB_CHAN_SCROLL, 1);
-			}
-			else
-			{
-				// scroll left if needed
-				while (editor.ui.channelOffset > channel)
-					scrollBarScrollUp(SB_CHAN_SCROLL, 1);
-			}
-		}
+	if (editor.cursor.ch == channel)
+		return;
 
-		editor.cursor.ch = channel; // set it here since scrollBarScrollX() changes it...
-		editor.ui.updatePatternEditor = true;
+	if (editor.ui.pattChanScrollShown)
+	{
+		assert(song.antChn > editor.ui.numChannelsShown);
+		if (channel >= editor.ui.channelOffset+editor.ui.numChannelsShown)
+			scrollBarScrollDown(SB_CHAN_SCROLL, (channel - (editor.ui.channelOffset + editor.ui.numChannelsShown)) + 1);
+		else if (channel < editor.ui.channelOffset)
+			scrollBarScrollUp(SB_CHAN_SCROLL, editor.ui.channelOffset - channel);
 	}
+
+	editor.cursor.ch = channel; // set it here since scrollBarScrollX() changes it...
+	editor.ui.updatePatternEditor = true;
 }
 
 void sbPosEdPos(uint32_t pos)
 {
-	bool audioWasntLocked;
-
-	audioWasntLocked = !audio.locked;
+	bool audioWasntLocked = !audio.locked;
 	if (audioWasntLocked)
 		lockAudio();
 
@@ -1549,9 +1529,7 @@ void sbPosEdPos(uint32_t pos)
 
 void pbPosEdPosUp(void)
 {
-	bool audioWasntLocked;
-
-	audioWasntLocked = !audio.locked;
+	bool audioWasntLocked = !audio.locked;
 	if (audioWasntLocked)
 		lockAudio();
 
@@ -1564,9 +1542,7 @@ void pbPosEdPosUp(void)
 
 void pbPosEdPosDown(void)
 {
-	bool audioWasntLocked;
-
-	audioWasntLocked = !audio.locked;
+	bool audioWasntLocked = !audio.locked;
 	if (audioWasntLocked)
 		lockAudio();
 
@@ -1739,9 +1715,7 @@ void pbPosEdLenDown(void)
 
 void pbPosEdRepSUp(void)
 {
-	bool audioWasntLocked;
-
-	audioWasntLocked = !audio.locked;
+	bool audioWasntLocked = !audio.locked;
 	if (audioWasntLocked)
 		lockAudio();
 
@@ -1758,9 +1732,7 @@ void pbPosEdRepSUp(void)
 
 void pbPosEdRepSDown(void)
 {
-	bool audioWasntLocked;
-
-	audioWasntLocked = !audio.locked;
+	bool audioWasntLocked = !audio.locked;
 	if (audioWasntLocked)
 		lockAudio();
 
@@ -1777,9 +1749,7 @@ void pbPosEdRepSDown(void)
 
 void pbBPMUp(void)
 {
-	bool audioWasntLocked;
-
-	audioWasntLocked = !audio.locked;
+	bool audioWasntLocked = !audio.locked;
 	if (audioWasntLocked)
 		lockAudio();
 
@@ -1802,9 +1772,7 @@ void pbBPMUp(void)
 
 void pbBPMDown(void)
 {
-	bool audioWasntLocked;
-
-	audioWasntLocked = !audio.locked;
+	bool audioWasntLocked = !audio.locked;
 	if (audioWasntLocked)
 		lockAudio();
 
@@ -1827,9 +1795,7 @@ void pbBPMDown(void)
 
 void pbSpeedUp(void)
 {
-	bool audioWasntLocked;
-
-	audioWasntLocked = !audio.locked;
+	bool audioWasntLocked = !audio.locked;
 	if (audioWasntLocked)
 		lockAudio();
 
@@ -1851,9 +1817,7 @@ void pbSpeedUp(void)
 
 void pbSpeedDown(void)
 {
-	bool audioWasntLocked;
-
-	audioWasntLocked = !audio.locked;
+	bool audioWasntLocked = !audio.locked;
 	if (audioWasntLocked)
 		lockAudio();
 
@@ -1946,9 +1910,7 @@ static void updatePtnLen(void)
 
 void pbEditPattUp(void)
 {
-	bool audioWasntLocked;
-
-	audioWasntLocked = !audio.locked;
+	bool audioWasntLocked = !audio.locked;
 	if (audioWasntLocked)
 		lockAudio();
 
@@ -1976,9 +1938,7 @@ void pbEditPattUp(void)
 
 void pbEditPattDown(void)
 {
-	bool audioWasntLocked;
-
-	audioWasntLocked = !audio.locked;
+	bool audioWasntLocked = !audio.locked;
 	if (audioWasntLocked)
 		lockAudio();
 
@@ -2726,15 +2686,11 @@ static void zapInstrs(void)
 {
 	lockMixerCallback();
 
-	clearAllInstr();
-
-	editor.instrBankOffset = 0;
-	editor.instrBankSwapped = false;
-
-	editor.curInstr = 1;
-	editor.srcInstr = 1;
-	editor.curSmp = 0;
-	editor.srcSmp = 0;
+	for (int16_t i = 1; i <= MAX_INST; i++)
+	{
+		freeInstr(i);
+		memset(song.instrName[i], 0, 23);
+	}
 
 	updateNewInstrument();
 

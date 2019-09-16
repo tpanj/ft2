@@ -1,5 +1,4 @@
-#ifndef __FT2_PATTERN_ED_H
-#define __FT2_PATTERN_ED_H
+#pragma once
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -7,15 +6,15 @@
 
 enum
 {
-	VOLUME_COLUMN_HIDDEN =  0,
-	VOLUME_COLUMN_SHOWN  =  1,
+	VOLUME_COLUMN_HIDDEN = 0,
+	VOLUME_COLUMN_SHOWN = 1,
 
 	TRANSP_ALL_INST = 0,
 	TRANSP_CUR_INST = 1,
 
 	TRANSP_TRACK = 0,
-	TRANSP_PATT  = 1,
-	TRANSP_SONG  = 2,
+	TRANSP_PATT = 1,
+	TRANSP_SONG = 2,
 	TRANSP_BLOCK = 3
 };
 
@@ -170,5 +169,3 @@ void pbZap(void);
 void sbSmpBankPos(uint32_t pos);
 void pbToggleLogo(void);
 void pbToggleBadge(void);
-
-#endif

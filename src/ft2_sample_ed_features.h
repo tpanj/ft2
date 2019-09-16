@@ -1,5 +1,4 @@
-#ifndef __FT2_SAMPLE_ED_FEATURES_H
-#define __FT2_SAMPLE_ED_FEATURES_H
+#pragma once
 
 #include <stdint.h>
 
@@ -8,5 +7,3 @@ void pbSampleEcho(void);
 void pbSampleMix(void);
 void pbSampleVolume(void);
 void handleEchoToolPanic(void);
-
-#endif

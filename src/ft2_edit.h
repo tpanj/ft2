@@ -1,5 +1,4 @@
-#ifndef __FT2_EDIT_H
-#define __FT2_EDIT_H
+#pragma once
 
 #include <stdint.h>
 #include <SDL.h>
@@ -78,5 +77,3 @@ void remapBlock(void);
 void remapTrack(void);
 void remapPattern(void);
 void remapSong(void);
-
-#endif

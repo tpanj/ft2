@@ -117,11 +117,11 @@ static void aboutInit(void)
 				}
 				else
 				{
-					r  = random32(30000);
-					n  = random32(5);
-					w  = ((2 * random32(2)) - 1) * sqr(random32(1000));
+					r = random32(30000);
+					n = random32(5);
+					w = ((2 * random32(2)) - 1) * sqr(random32(1000));
 					ww = (((M_PI * 2.0) / 5.0) * n) + (r / 12000.0) + (w / 3000000.0);
-					h  = ((sqr(r) / 30000) * (random32(10000) - 5000)) / 12000;
+					h = ((sqr(r) / 30000) * (random32(10000) - 5000)) / 12000;
 
 					starcrd[i].x = (int16_t)trunc(r * cos(ww));
 					starcrd[i].y = (int16_t)trunc(r * sin(ww));
@@ -137,9 +137,9 @@ static void aboutInit(void)
 			hastighet = 0;
 			for (i = 0; i < NUM_STARS; i++)
 			{
-				r  = (int32_t)round(sqrt(random32(500) * 500));
-				w  = random32(3000);
-				h  = cos32767[(((w * 8) + r) / 16) & 1023] / 4;
+				r = (int32_t)round(sqrt(random32(500) * 500));
+				w = random32(3000);
+				h = cos32767[(((w * 8) + r) / 16) & 1023] / 4;
 
 				starcrd[i].z = (int16_t)((cos32767[w & 1023] * (w + r)) / 3500);
 				starcrd[i].y = (int16_t)((sin32767[w & 1023] * (w + r)) / 3500);

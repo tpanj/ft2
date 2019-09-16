@@ -171,7 +171,7 @@ void setSpeed(uint16_t bpm)
 		dFrac *= UINT32_MAX + 1.0;
 		if (dFrac > (double)UINT32_MAX)
 			dFrac = (double)UINT32_MAX;
-		double2int32_round(tickTimeLenFrac, dFrac);
+		tickTimeLenFrac = (uint32_t)dFrac;
 	}
 }
 
@@ -199,7 +199,7 @@ static inline void voiceUpdateVolumes(uint8_t i, uint8_t status)
 	volL = v->SVol * amp; // 0..2047 * 1..32 = 0..65504
 
 	// (0..65504 * 0..65536) >> 4 = 0..268304384
-	volR = ((uint32_t)volL * panningTab[      v->SPan]) >> 4;
+	volR = ((uint32_t)volL * panningTab[v->SPan]) >> 4;
 	volL = ((uint32_t)volL * panningTab[256 - v->SPan]) >> 4;
 
 	if (!audio.volumeRampingFlag)
@@ -693,7 +693,7 @@ uint32_t mixReplayerTickToBuffer(uint8_t *stream, uint8_t bitDepth)
 	// normalize mix buffer and send to audio stream
 	if (bitDepth == 16)
 	{
-		if (config.audioDither)
+		if (config.specialFlags2 & DITHERED_AUDIO)
 			sendSamples16BitDitherStereo(stream, speedVal, 2);
 		else
 			sendSamples16BitStereo(stream, speedVal, 2);
@@ -914,7 +914,8 @@ void lockMixerCallback(void) // lock audio + clear voices/scopes (for short oper
 
 	audio.resetSyncTickTimeFlag = true;
 
-	stopVoices(); // VERY important! prevents potential crashes
+	stopVoices(); // VERY important! prevents potential crashes by purging pointers
+
 	// scopes, mixer and replayer are guaranteed to not be active at this point
 
 	resetSyncQueues();
@@ -922,7 +923,7 @@ void lockMixerCallback(void) // lock audio + clear voices/scopes (for short oper
 
 void unlockMixerCallback(void)
 {
-	stopVoices(); // VERY important! prevents potential crashes
+	stopVoices(); // VERY important! prevents potential crashes by purging pointers
 	
 	if (audio.locked)
 		unlockAudio();
@@ -931,18 +932,21 @@ void unlockMixerCallback(void)
 void pauseAudio(void) // lock audio + clear voices/scopes + render silence (for long operations)
 {
 	if (audioPaused)
+	{
+		stopVoices(); // VERY important! prevents potential crashes by purging pointers
 		return;
+	}
 
 	if (audio.dev > 0)
 		SDL_PauseAudioDevice(audio.dev, true);
 
 	audio.resetSyncTickTimeFlag = true;
 
-	stopVoices(); // VERY important! prevents potential crashes
+	stopVoices(); // VERY important! prevents potential crashes by purging pointers
+
 	// scopes, mixer and replayer are guaranteed to not be active at this point
 
 	resetSyncQueues();
-
 	audioPaused = true;
 }
 
@@ -1092,10 +1096,10 @@ void updateSendAudSamplesRoutine(bool lockMixer)
 		lockMixerCallback();
 
 	// force dither off if somehow set with 24-bit float (illegal)
-	if (config.audioDither && (config.specialFlags & BITDEPTH_24))
-		config.audioDither = false;
+	if ((config.specialFlags2 & DITHERED_AUDIO) && (config.specialFlags & BITDEPTH_24))
+		config.specialFlags2 &= ~DITHERED_AUDIO;
 
-	if (config.audioDither)
+	if (config.specialFlags2 & DITHERED_AUDIO)
 	{
 		if (config.specialFlags & BITDEPTH_16)
 		{
@@ -1146,7 +1150,7 @@ static void calcAudioLatencyVars(uint16_t haveSamples, int32_t haveFreq)
 	dFrac *= UINT32_MAX + 1.0;
 	if (dFrac > (double)UINT32_MAX)
 		dFrac = (double)UINT32_MAX;
-	double2int32_round(audio.audLatencyPerfValFrac, dFrac);
+	audio.audLatencyPerfValFrac = (uint32_t)round(dFrac);
 
 	audio.dAudioLatencyMs = dAudioLatencySecs * 1000.0;
 }
@@ -1279,8 +1283,8 @@ bool setupAudio(bool showErrorMsg)
 
 	calcAudioLatencyVars(have.samples, have.freq);
 
-	if (config.audioDither && newBitDepth == 24)
-		config.audioDither = false;
+	if ((config.specialFlags2 & DITHERED_AUDIO) && newBitDepth == 24)
+		config.specialFlags2 &= ~DITHERED_AUDIO;
 
 	pmpChannels = have.channels;
 	pmpCountDiv = pmpChannels * ((newBitDepth == 16) ? sizeof (int16_t) : sizeof (float));

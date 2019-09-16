@@ -1,5 +1,4 @@
-#ifndef __FT2_INST_ED_H
-#define __FT2_INST_ED_H
+#pragma once
 
 #include <stdint.h>
 #include "ft2_header.h"
@@ -103,5 +102,3 @@ void drawInstEditorExt(void);
 void showInstEditorExt(void);
 void hideInstEditorExt(void);
 void toggleInstEditorExt(void);
-
-#endif

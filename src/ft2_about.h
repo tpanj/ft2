@@ -1,5 +1,4 @@
-#ifndef __FT2_ABOUT_H
-#define __FT2_ABOUT_H
+#pragma once
 
 #include <stdint.h>
 
@@ -8,5 +7,3 @@ void seedAboutScreenRandom(uint32_t newseed);
 void showAboutScreen(void);
 void hideAboutScreen(void);
 void exitAboutScreen(void);
-
-#endif

@@ -1,5 +1,4 @@
-#ifndef __FT2_VIDEO_H
-#define __FT2_VIDEO_H
+#pragma once
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -7,26 +6,19 @@
 #include "ft2_palette.h"
 #include "ft2_audio.h"
 
-#define RGB_R(x) (((x) >> 16) & 0xFF)
-#define RGB_G(x) (((x) >>  8) & 0xFF)
-#define RGB_B(x) ( (x)        & 0xFF)
-#define TO_RGB(r, g, b) (((r) << 16) | ((g) << 8) | (b))
-#define P6_TO_P8(x) (uint8_t)(((x) * (255.0f /  63.0f)) + 0.5f)
-#define P8_TO_P6(x) (uint8_t)(((x) * (63.0f  / 255.0f)) + 0.5f)
-
 enum
 {
-	SPRITE_LEFT_LOOP_PIN  = 0,
+	SPRITE_LEFT_LOOP_PIN = 0,
 	SPRITE_RIGHT_LOOP_PIN = 1,
-	SPRITE_TEXT_CURSOR    = 2,
-	SPRITE_MOUSE_POINTER  = 3, // priority above all other sprites
+	SPRITE_TEXT_CURSOR = 2,
+	SPRITE_MOUSE_POINTER = 3, // priority above all other sprites
 
 	SPRITE_NUM
 };
 
 struct video_t
 {
-	uint8_t upscaleFactor, customPaletteContrasts[2];
+	uint8_t upscaleFactor;
 	bool fullscreen, vsync60HzPresent, showFPSCounter;
 	int32_t renderX, renderY, renderW, renderH, displayW, displayH;
 	uint32_t *frameBuffer, palette[PAL_NUM], vblankTimeLen, vblankTimeLenFrac;
@@ -57,7 +49,6 @@ void flipFrame(void);
 void showErrorMsgBox(const char *fmt, ...);
 void updateWindowTitle(bool forceUpdate);
 void setPalettePreset(int16_t palettePreset);
-void updatePaletteContrast(void);
 void handleScopesFromChQueue(chSyncData_t *chSyncData, uint8_t *scopeUpdateStatus);
 bool setupWindow(void);
 bool setupRenderer(void);
@@ -81,5 +72,3 @@ void setWindowSizeFromConfig(bool updateRenderer);
 bool recreateTexture(void);
 void setupWaitVBL(void);
 void waitVBL(void);
-
-#endif

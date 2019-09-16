@@ -1,5 +1,4 @@
-#ifndef __FT2_GFXDATA_H
-#define __FT2_GFXDATA_H
+#pragma once
 
 #include <stdint.h>
 
@@ -58,5 +57,3 @@ extern const uint8_t scopeMuteBMP12[216];
 
 // ft2_midi.c
 extern const uint8_t midiLogo[3800];
-
-#endif

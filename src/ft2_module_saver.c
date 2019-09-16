@@ -21,15 +21,14 @@ static uint16_t packPatt(uint8_t *pattPtr, uint16_t numRows);
 
 // ft2_replayer.c
 extern const char modSig[32][5];
-extern const uint16_t amigaPeriod[12 * 8];
+extern const uint16_t amigaPeriod[12*8];
 
 bool saveXM(UNICHAR *filenameU)
 {
 	uint8_t *pattPtr;
-	int16_t ap, ai, i, k, a;
+	int16_t ap, ai, i, j, k, a;
 	uint16_t b, c;
 	size_t result;
-	instrTyp *ins;
 	songHeaderTyp h;
 	patternHeaderTyp ph;
 	instrHeaderTyp ih;
@@ -70,7 +69,7 @@ bool saveXM(UNICHAR *filenameU)
 	h.antPtn = ap;
 
 	// count number of instruments
-	ai = MAX_INST;
+	ai = 128;
 	while (ai > 0 && getUsedSamples(ai) == 0 && song.instrName[ai][0] == '\0')
 		ai--;
 	h.antInstrs = ai;
@@ -138,7 +137,10 @@ bool saveXM(UNICHAR *filenameU)
 
 	for (i = 1; i <= ai; i++)
 	{
-		ins = &instr[i];
+		if (instr[i] == NULL)
+			j = 0;
+		else
+			j = i;
 
 		a = getUsedSamples(i);
 
@@ -151,15 +153,15 @@ bool saveXM(UNICHAR *filenameU)
 
 		if (a > 0)
 		{
-			memcpy(ih.ta, ins, INSTR_SIZE);
+			memcpy(ih.ta, instr[j], INSTR_SIZE);
 			ih.instrSize = INSTR_HEADER_SIZE;
 			
-			for (k = 0; k < a; k++)
+			for (k = 1; k <= a; k++)
 			{
-				srcSmp = &ins->samp[k];
-				dstSmp = &ih.samp[k];
+				srcSmp = &instr[j]->samp[k-1];
+				dstSmp = &ih.samp[k-1];
 
-				memset(dstSmp->name, ' ', sizeof (dstSmp->name));
+				memset(dstSmp->name, ' ', 22);
 
 				memcpy(dstSmp, srcSmp, 12+4+2 + strlen(srcSmp->name));
 				if (srcSmp->pek == NULL)
@@ -178,9 +180,9 @@ bool saveXM(UNICHAR *filenameU)
 			return false;
 		}
 
-		for (k = 0; k < a; k++)
+		for (k = 1; k <= a; k++)
 		{
-			srcSmp = &ins->samp[k];
+			srcSmp = &instr[j]->samp[k-1];
 			if (srcSmp->pek != NULL)
 			{
 				restoreSample(srcSmp);
@@ -215,7 +217,7 @@ static bool saveMOD(UNICHAR *filenameU)
 {
 	bool test, tooManyInstr, incompatEfx, noteUnderflow;
 	int8_t *srcPtr, *dstPtr;
-	uint8_t ton, inst, pattBuff[64 * 4 * 32];
+	uint8_t ton, inst, pattBuff[64*4*32];
 	int16_t a, i, ap;
 	int32_t j, k, l1, l2, l3, writeLen, bytesToWrite, bytesWritten;
 	FILE *f;
@@ -247,7 +249,7 @@ static bool saveMOD(UNICHAR *filenameU)
 	}
 	if (test) okBoxThreadSafe(0, "System message", "Too many patterns!");
 
-	for (i = 32; i < 128; i++)
+	for (i = 32; i <= 128; i++)
 	{
 		if (getRealUsedSamples(i) > 0)
 		{
@@ -259,7 +261,10 @@ static bool saveMOD(UNICHAR *filenameU)
 	test = false;
 	for (i = 1; i <= 31; i++)
 	{
-		ins = &instr[i];
+		ins = instr[i];
+		if (ins == NULL)
+			continue;
+
 		smp = &ins->samp[0];
 
 		j = getRealUsedSamples(i);
@@ -271,8 +276,8 @@ static bool saveMOD(UNICHAR *filenameU)
 
 		if (j == 1)
 		{
-			if (smp->len > 65534 || ins->envVTyp != 0 || ins->envPTyp != 0 ||
-			    (smp->typ & 3) == 2 || smp->relTon != 0 || ins->midiOn)
+			if (smp->len > 65534 || ins->fadeOut != 0 || ins->envVTyp != 0 || ins->envPTyp != 0 ||
+				(smp->typ & 3) == 2 || smp->relTon != 0 || ins->midiOn)
 			{
 				test = true;
 				break;
@@ -312,7 +317,7 @@ static bool saveMOD(UNICHAR *filenameU)
 	}
 	if (tooManyInstr)  okBoxThreadSafe(0, "System message", "Instrument(s) above 31 was found in pattern data!");
 	if (incompatEfx)   okBoxThreadSafe(0, "System message", "Incompatible effect(s) was found in pattern data!");
-	if (noteUnderflow) okBoxThreadSafe(0, "System message", "Note(s) below A-0 was found in pattern data!");
+	if (noteUnderflow) okBoxThreadSafe(0, "System message", "Note(s) below A-0 were found in pattern data!");
 
 	// setup header buffer
 	memset(&hm, 0, sizeof (hm));
@@ -337,12 +342,14 @@ static bool saveMOD(UNICHAR *filenameU)
 		memcpy(hm.sig, modSig[song.antChn-1], 4);
 
 	// read sample information into header buffer
-	for (i = 0; i < 31; i++)
+	for (i = 1; i <= 31; i++)
 	{
-		memcpy(hm.instr[i].name, song.instrName[1+i], sizeof (hm.instr[0].name));
-		if (getRealUsedSamples(1 + i) != 0)
+		songMODInstrHeaderTyp *modIns = &hm.instr[i-1];
+
+		memcpy(modIns->name, song.instrName[i], sizeof (modIns->name));
+		if (instr[i] != NULL && getRealUsedSamples(i) != 0)
 		{
-			smp = &instr[1+i].samp[0];
+			smp = &instr[i]->samp[0];
 
 			l1 = smp->len / 2;
 			l2 = smp->repS / 2;
@@ -371,27 +378,27 @@ static bool saveMOD(UNICHAR *filenameU)
 				l3 = 1;
 			}
 
-			hm.instr[i].len = (uint16_t)(SWAP16(l1));
-			hm.instr[i].fine = ((smp->fine + 128) >> 4) ^ 8;
-			hm.instr[i].vol = smp->vol;
+			modIns->len = (uint16_t)(SWAP16(l1));
+			modIns->fine = ((smp->fine + 128) >> 4) ^ 8;
+			modIns->vol = smp->vol;
 
 			if ((smp->typ & 3) == 0)
 			{
-				hm.instr[i].repS = 0;
-				hm.instr[i].repL = SWAP16(1);
+				modIns->repS = 0;
+				modIns->repL = SWAP16(1);
 			}
 			else
 			{
-				hm.instr[i].repS = (uint16_t)(SWAP16(l2));
-				hm.instr[i].repL = (uint16_t)(SWAP16(l3));
+				modIns->repS = (uint16_t)(SWAP16(l2));
+				modIns->repL = (uint16_t)(SWAP16(l3));
 			}
 		}
 
 		// FT2 bugfix: never allow replen being below 2 (1)
-		if (SWAP16(hm.instr[i].repL) < 1)
+		if (SWAP16(modIns->repL) < 1)
 		{
-			hm.instr[i].repS = SWAP16(0);
-			hm.instr[i].repL = SWAP16(1);
+			modIns->repS = SWAP16(0);
+			modIns->repL = SWAP16(1);
 		}
 	}
 
@@ -449,7 +456,7 @@ static bool saveMOD(UNICHAR *filenameU)
 					else
 					{
 						pattBuff[a+0] = (inst & 0xF0) | ((amigaPeriod[ton-1] >> 8) & 0x0F);
-						pattBuff[a+1] = amigaPeriod[ton - 1] & 0xFF;
+						pattBuff[a+1] = amigaPeriod[ton-1] & 0xFF;
 					}
 
 					// FT2 bugfix: if effect is overflowing (0xF in .MOD), set effect and param to 0
@@ -479,63 +486,63 @@ static bool saveMOD(UNICHAR *filenameU)
 	// write sample data
 	for (i = 0; i < 31; i++)
 	{
-		if (getRealUsedSamples(1 + i) != 0)
+		if (instr[1+i] == NULL || getRealUsedSamples(1+i) == 0)
+			continue;
+
+		smp = &instr[1+i]->samp[0];
+		if (smp->pek == NULL || smp->len <= 0)
+			continue;
+
+		restoreSample(smp);
+
+		l1 = smp->len / 2;
+		if (smp->typ & 16) // 16-bit sample (convert to 8-bit)
 		{
-			smp = &instr[1+i].samp[0];
-			if (smp->pek == NULL || smp->len <= 0)
-				continue;
+			if (l1 > 65534)
+				l1 = 65534;
 
-			restoreSample(smp);
+			// let's borrow "pattBuff" here
+			dstPtr = (int8_t *)pattBuff;
 
-			l1 = smp->len / 2;
-			if (smp->typ & 16) // 16-bit sample (convert to 8-bit)
+			writeLen = l1;
+			bytesWritten = 0;
+			while (bytesWritten < writeLen) // write in 8K blocks
 			{
-				if (l1 > 65534)
-					l1 = 65534;
+	 			bytesToWrite = sizeof (pattBuff);
+				if (bytesWritten+bytesToWrite > writeLen)
+					bytesToWrite = writeLen - bytesWritten;
 
-				// let's borrow "pattBuff" here
-				dstPtr = (int8_t *)pattBuff;
+				srcPtr = &smp->pek[(bytesWritten << 1) + 1]; // +1 to align to high byte
+				for (j = 0; j < bytesToWrite; j++)
+					dstPtr[j] = srcPtr[j << 1];
 
-				writeLen = l1;
-				bytesWritten = 0;
-				while (bytesWritten < writeLen) // write in 8K blocks
-				{
-	 				bytesToWrite = sizeof (pattBuff);
-					if (bytesWritten+bytesToWrite > writeLen)
-						bytesToWrite = writeLen - bytesWritten;
-
-					srcPtr = &smp->pek[(bytesWritten << 1) + 1]; // +1 to align to high byte
-					for (j = 0; j < bytesToWrite; j++)
-						dstPtr[j] = srcPtr[j << 1];
-
-					if (fwrite(dstPtr, 1, bytesToWrite, f) != (size_t)bytesToWrite)
-					{
-						fixSample(smp);
-						okBoxThreadSafe(0, "System message", "Error saving module: general I/O error!");
-						goto modSaveError;
-					}
-
-					bytesWritten += bytesToWrite;
-				}
-			}
-			else
-			{
-				// 8-bit sample
-
-				if (l1 > 32767)
-					l1 = 32767;
-				l1 *= 2;
-
-				if (fwrite(smp->pek, 1, l1, f) != (size_t)l1)
+				if (fwrite(dstPtr, 1, bytesToWrite, f) != (size_t)bytesToWrite)
 				{
 					fixSample(smp);
 					okBoxThreadSafe(0, "System message", "Error saving module: general I/O error!");
 					goto modSaveError;
 				}
-			}
 
-			fixSample(smp);
+				bytesWritten += bytesToWrite;
+			}
 		}
+		else
+		{
+			// 8-bit sample
+
+			if (l1 > 32767)
+				l1 = 32767;
+			l1 *= 2;
+
+			if (fwrite(smp->pek, 1, l1, f) != (size_t)l1)
+			{
+				fixSample(smp);
+				okBoxThreadSafe(0, "System message", "Error saving module: general I/O error!");
+				goto modSaveError;
+			}
+		}
+
+		fixSample(smp);
 	}
 
 	fclose(f);

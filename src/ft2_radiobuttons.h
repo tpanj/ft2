@@ -1,5 +1,4 @@
-#ifndef __FT2_RADIOBUTTONS_H
-#define __FT2_RADIOBUTTONS_H
+#pragma once
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -187,8 +186,8 @@ enum // RADIOBUTTONS
 enum
 {
 	RADIOBUTTON_UNCHECKED = 0,
-	RADIOBUTTON_CHECKED   = 1,
-	RADIOBUTTON_PRESSED   = 2
+	RADIOBUTTON_CHECKED = 1,
+	RADIOBUTTON_PRESSED = 2
 };
 
 #define RADIOBUTTON_W 11
@@ -215,5 +214,3 @@ void hideRadioButtonGroup(uint16_t radioButtonGroup);
 void handleRadioButtonsWhileMouseDown(void);
 bool testRadioButtonMouseDown(void);
 void testRadioButtonMouseRelease(void);
-
-#endif

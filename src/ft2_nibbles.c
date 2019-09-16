@@ -66,7 +66,7 @@ static void redrawNibblesScreen(void)
 		for (y = 0; y < 23; y++)
 		{
 			xs = 152 + (x * 8);
-			ys = 7   + (y * 7);
+			ys = 7 + (y * 7);
 
 			c = NI_Screen[x][y];
 			if (c < 16)
@@ -141,8 +141,8 @@ static void nibblesGetLevel(int16_t nr)
 {
 	int16_t readX, readY, x, y;
 
-	readX = 1 + ((51 + 2) * (nr % 10));
-	readY = 1 + ((23 + 2) * (nr / 10));
+	readX = 1 + ((51+2) * (nr % 10));
+	readY = 1 + ((23+2) * (nr / 10));
 
 	for (x = 0; x < 51; x++)
 	{
@@ -224,13 +224,13 @@ static void nibbleWriteLevelSprite(int16_t xOut, int16_t yOut, int16_t nr)
 	src = (uint8_t *)&nibblesStages[(readY * 530) + readX];
 	dst = &video.frameBuffer[(yOut * SCREEN_W) + xOut];
 
-	for (uint16_t y = 0; y < (23 + 2); y++)
+	for (uint16_t y = 0; y < 23+2; y++)
 	{
-		for (uint16_t x = 0; x < (51 + 2); x++)
+		for (uint16_t x = 0; x < 51+2; x++)
 			*dst++ = video.palette[*src++];
 
-		src += 530 - (51 + 2);
-		dst += SCREEN_W - (51 + 2);
+		src += 530 - (51+2);
+		dst += SCREEN_W - (51+2);
 	}
 
 	// overwrite start position pixels
@@ -253,7 +253,7 @@ static void highScoreTextOutClipX(uint16_t x, uint16_t y, uint8_t paletteIndex, 
 			break;
 
 		charOutClipX(currX + 1, y + 1, shadowPaletteIndex, ch, clipX); // shadow
-		charOutClipX(currX,     y,     paletteIndex,       ch, clipX); // foreground
+		charOutClipX(currX, y, paletteIndex, ch, clipX); // foreground
 
 		currX += charWidth(ch);
 		if (currX >= clipX)
@@ -274,13 +274,13 @@ void nibblesHighScore(void)
 	bigTextOut(160, 10, PAL_FORGRND, "Fasttracker Nibbles Highscore");
 	for (int16_t i = 0; i < 5; i++)
 	{
-		highScoreTextOutClipX(160, 42 + (26 * i), PAL_FORGRND, PAL_DSKTOP2, &config.NI_HighScore[i].name[1], 160 + 70);
+		highScoreTextOutClipX(160, 42 + (26 * i), PAL_FORGRND, PAL_DSKTOP2, config.NI_HighScore[i].name, 160 + 70);
 		hexOutShadow(160 + 76, 42 + (26 * i), PAL_FORGRND, PAL_DSKTOP2, config.NI_HighScore[i].score, 8);
 		nibbleWriteLevelSprite(160 + 136, (42 - 9) + (26 * i), config.NI_HighScore[i].level);
 
-		highScoreTextOutClipX(360, 42 + (26 * i), PAL_FORGRND, PAL_DSKTOP2, &config.NI_HighScore[i + 5].name[1], 360 + 70);
-		hexOutShadow(360 + 76, 42 + (26 * i), PAL_FORGRND, PAL_DSKTOP2, config.NI_HighScore[i + 5].score, 8);
-		nibbleWriteLevelSprite(360 + 136, (42 - 9) + (26 * i), config.NI_HighScore[i + 5].level);
+		highScoreTextOutClipX(360, 42 + (26 * i), PAL_FORGRND, PAL_DSKTOP2, config.NI_HighScore[i+5].name, 360 + 70);
+		hexOutShadow(360 + 76, 42 + (26 * i), PAL_FORGRND, PAL_DSKTOP2, config.NI_HighScore[i+5].score, 8);
+		nibbleWriteLevelSprite(360 + 136, (42 - 9) + (26 * i), config.NI_HighScore[i+5].level);
 	}
 }
 
@@ -321,7 +321,7 @@ static void nibblesGenNewNumber(void)
 			NI_NumberY = y;
 
 			xs = 152 + (x * 8);
-			ys = 7   + (y * 7);
+			ys = 7 + (y * 7);
 
 			if (config.NI_Grid)
 			{
@@ -385,7 +385,7 @@ static void drawScoresLives(void)
 
 static void nibblesDecLives(int16_t l1, int16_t l2)
 {
-	char name[22 + 1];
+	char name[21 + 1];
 	int16_t i, k;
 	highScoreType *h;
 
@@ -429,18 +429,13 @@ static void nibblesDecLives(int16_t l1, int16_t l2)
 			if (i == 0)
 				okBox(0, "Nibbles message", "You've probably cheated!");
 
-			// count name length
-			for (k = 0; k < 22; k++)
-			{
-				if (name[k] == '\0')
-					break;
-			}
-
 			h = &config.NI_HighScore[i];
 
+			k = (int16_t)strlen(name);
 			memset(h->name, 0, sizeof (h->name));
-			memcpy(&h->name[1], name, k);
-			h->name[0] = (char)k;
+			memcpy(h->name, name, k);
+			h->nameLen = (uint8_t)k;
+
 			h->score = NI_P1Score;
 			h->level = NI_Level;
 		}
@@ -455,23 +450,18 @@ static void nibblesDecLives(int16_t l1, int16_t l2)
 				i++;
 
 			for (k = 8; k >= i; k--)
-				memcpy(&config.NI_HighScore[k + 1], &config.NI_HighScore[k], sizeof (highScoreType));
+				memcpy(&config.NI_HighScore[k+1], &config.NI_HighScore[k], sizeof (highScoreType));
 
 			if (i == 0)
 				okBox(0, "Nibbles message", "You've probably cheated!");
 
-			// count name length
-			for (k = 0; k < 22; k++)
-			{
-				if (name[k] == '\0')
-					break;
-			}
-
 			h = &config.NI_HighScore[i];
+			k = (int16_t)strlen(name);
 
 			memset(h->name, 0, sizeof (h->name));
-			memcpy(&h->name[1], name, k);
-			h->name[0] = (char)k;
+			memcpy(h->name, name, k);
+			h->nameLen = (uint8_t)k;
+
 			h->score = NI_P2Score;
 			h->level = NI_Level;
 		}
@@ -805,8 +795,8 @@ void nibblesPlay(void)
 	NI_CurSpeed = NI_Speeds[config.NI_Speed];
 
 	// adjust for 70Hz -> 60Hz frames
-	NI_CurSpeed60Hz = (uint8_t)round(NI_CurSpeed  * ((double)VBLANK_HZ / FT2_VBLANK_HZ));
-	NI_CurTick60Hz  = (uint8_t)round(NI_Speeds[2] * ((double)VBLANK_HZ / FT2_VBLANK_HZ));
+	NI_CurSpeed60Hz = (uint8_t)round(NI_CurSpeed * ((double)VBLANK_HZ / FT2_VBLANK_HZ));
+	NI_CurTick60Hz = (uint8_t)round(NI_Speeds[2] * ((double)VBLANK_HZ / FT2_VBLANK_HZ));
 
 	editor.NI_Play = true;
 	NI_P1Score = 0;
@@ -830,7 +820,7 @@ void nibblesHelp(void)
 
 	bigTextOut(160, 10, PAL_FORGRND, "Fasttracker Nibbles Help");
 	for (uint8_t i = 0; i < NIBBLES_HELP_LINES; i++)
-		textOut(160, 36 + (11 * i), PAL_BUTTONS, (char *)NI_HelpText[i]);
+		textOut(160, 36 + (11 * i), PAL_BUTTONS, NI_HelpText[i]);
 }
 
 void nibblesExit(void)
