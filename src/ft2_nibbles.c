@@ -157,7 +157,7 @@ static void nibblesCreateLevel(int16_t nr)
 	int16_t x, y, x1, y1, x2, y2;
 
 	if (nr >= NI_MAXLEVEL)
-		nr  = NI_MAXLEVEL - 1;
+		nr = NI_MAXLEVEL - 1;
 
 	nibblesGetLevel(nr);
 
@@ -289,7 +289,7 @@ static void setNibbleDot(uint8_t x, uint8_t y, uint8_t c)
 	uint16_t xs, ys;
 
 	xs = 152 + (x * 8);
-	ys = 7   + (y * 7);
+	ys = 7 + (y * 7);
 
 	if (config.NI_Grid)
 	{
@@ -706,8 +706,8 @@ void showNibblesScreen(void)
 	textOutShadow(4,  75,  PAL_FORGRND, PAL_DSKTOP2, "Score");
 	textOutShadow(4,  39,  PAL_FORGRND, PAL_DSKTOP2, "Lives");
 	textOutShadow(4,  87,  PAL_FORGRND, PAL_DSKTOP2, "Lives");
-	textOutShadow(18, 106, PAL_FORGRND, PAL_DSKTOP2, "1 Player");
-	textOutShadow(18, 120, PAL_FORGRND, PAL_DSKTOP2, "2 Players");
+	textOutShadow(18, 106, PAL_FORGRND, PAL_DSKTOP2, "1 player");
+	textOutShadow(18, 120, PAL_FORGRND, PAL_DSKTOP2, "2 players");
 	textOutShadow(20, 135, PAL_FORGRND, PAL_DSKTOP2, "Surround");
 	textOutShadow(20, 148, PAL_FORGRND, PAL_DSKTOP2, "Grid");
 	textOutShadow(20, 161, PAL_FORGRND, PAL_DSKTOP2, "Wrap");

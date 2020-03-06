@@ -13,6 +13,7 @@
 #include "ft2_pattern_ed.h"
 #include "ft2_sysreqs.h"
 #include "ft2_textboxes.h"
+#include "ft2_tables.h"
 
 enum
 {
@@ -38,30 +39,6 @@ static tonTyp ptnCopyBuff[MAX_PATT_LEN * MAX_VOICES];
 static tonTyp trackCopyBuff[MAX_PATT_LEN];
 
 static const int8_t tickArr[16] = { 16, 8, 0, 4, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 1 };
-
-static const SDL_Keycode key2VolTab[] = 
-{
-	SDLK_0, SDLK_1, SDLK_2, SDLK_3, SDLK_4, SDLK_MINUS, SDLK_PLUS, SDLK_d,
-	SDLK_u, SDLK_s, SDLK_v, SDLK_p, SDLK_l, SDLK_r, SDLK_m
-};
-#define KEY2VOL_ENTRIES (signed)(sizeof (key2VolTab) / sizeof (SDL_Keycode))
-
-static const SDL_Keycode key2EfxTab[] = 
-{
-	SDLK_0, SDLK_1, SDLK_2, SDLK_3, SDLK_4, SDLK_5, SDLK_6, SDLK_7,
-	SDLK_8, SDLK_9, SDLK_a, SDLK_b, SDLK_c, SDLK_d, SDLK_e, SDLK_f,
-	SDLK_g, SDLK_h, SDLK_i, SDLK_j, SDLK_k, SDLK_l, SDLK_m, SDLK_n,
-	SDLK_o, SDLK_p, SDLK_q, SDLK_r, SDLK_s, SDLK_t, SDLK_u, SDLK_v,
-	SDLK_w, SDLK_x, SDLK_y, SDLK_z
-};
-#define KEY2EFX_ENTRIES (signed)(sizeof (key2EfxTab) / sizeof (SDL_Keycode))
-
-static const SDL_Keycode key2HexTab[] = 
-{
-	SDLK_0, SDLK_1, SDLK_2, SDLK_3, SDLK_4, SDLK_5, SDLK_6, SDLK_7,
-	SDLK_8, SDLK_9, SDLK_a, SDLK_b, SDLK_c, SDLK_d, SDLK_e, SDLK_f
-};
-#define KEY2HEX_ENTRIES (signed)(sizeof (key2HexTab) / sizeof (SDL_Keycode))
 
 void recordNote(uint8_t note, int8_t vol);
 
@@ -252,7 +229,7 @@ static bool testEditKeys(SDL_Scancode scancode, SDL_Keycode keycode)
 
 	pattLen = pattLens[editor.editPattern];
 	if (playMode == PLAYMODE_EDIT && pattLen >= 1)
-		setPos(-1, (editor.pattPos + editor.ID_Add) % pattLen);
+		setPos(-1, (editor.pattPos + editor.ID_Add) % pattLen, true);
 
 	if (i == 0) // if we inserted a zero, check if pattern is empty, for killing
 		killPatternIfUnused(editor.editPattern);
@@ -438,7 +415,13 @@ void recordNote(uint8_t note, int8_t vol)
 		editor.keyOnTab[c] = note;
 
 		if (pattpos >= oldpattpos) // non-FT2 fix: only do this if we didn't quantize to next row
+		{
+#ifdef HAS_MIDI
 			playTone(c, editor.curInstr, note, vol, midi.currMIDIVibDepth, midi.currMIDIPitch);
+#else
+			playTone(c, editor.curInstr, note, vol, 0, 0);
+#endif
+		}
 
 		if (editmode || recmode)
 		{
@@ -459,7 +442,7 @@ void recordNote(uint8_t note, int8_t vol)
 				{
 					// increase row (only in edit mode)
 					if (pattLen >= 1)
-						setPos(-1, (editor.pattPos + editor.ID_Add) % pattLen);
+						setPos(-1, (editor.pattPos + editor.ID_Add) % pattLen, true);
 				}
 				else
 				{
@@ -490,7 +473,13 @@ void recordNote(uint8_t note, int8_t vol)
 		editor.keyOffTime[c] = ++editor.keyOffNr;
 
 		if (pattpos >= oldpattpos) // non-FT2 fix: only do this if we didn't quantize to next row
+		{
+#ifdef HAS_MIDI
 			playTone(c, editor.curInstr, 97, vol, midi.currMIDIVibDepth, midi.currMIDIPitch);
+#else
+			playTone(c, editor.curInstr, 97, vol, 0, 0);
+#endif
+		}
 
 		if (config.recRelease && recmode)
 		{
@@ -524,7 +513,7 @@ void recordNote(uint8_t note, int8_t vol)
 				{
 					// increase row (only in edit mode)
 					if (pattLen >= 1)
-						setPos(-1, (editor.pattPos + editor.ID_Add) % pattLen);
+						setPos(-1, (editor.pattPos + editor.ID_Add) % pattLen, true);
 				}
 				else
 				{
@@ -598,7 +587,7 @@ bool handleEditKeys(SDL_Keycode keycode, SDL_Scancode scancode)
 		// increase row (only in edit mode)
 		pattLen = pattLens[editor.editPattern];
 		if (playMode == PLAYMODE_EDIT && pattLen >= 1)
-			setPos(-1, (editor.pattPos + editor.ID_Add) % pattLen);
+			setPos(-1, (editor.pattPos + editor.ID_Add) % pattLen, true);
 
 		editor.ui.updatePatternEditor = true;
 		setSongModifiedFlag();
@@ -673,7 +662,7 @@ void writeFromMacroSlot(uint8_t slot)
 	}
 
 	if (playMode == PLAYMODE_EDIT && pattLen >= 1)
-		setPos(-1, (editor.pattPos + editor.ID_Add) % pattLen);
+		setPos(-1, (editor.pattPos + editor.ID_Add) % pattLen, true);
 
 	killPatternIfUnused(editor.editPattern);
 
@@ -723,35 +712,30 @@ void insertPatternLine(void)
 
 	nr = editor.editPattern;
 
-	if (setPatternLen(nr, pattLens[nr] + config.recTrueInsert)) // config.recTrueInsert is 0 or 1
+	setPatternLen(nr, pattLens[nr] + config.recTrueInsert); // config.recTrueInsert is 0 or 1
+
+	pattPtr = patt[nr];
+	if (pattPtr != NULL)
 	{
-		pattPtr = patt[nr];
-		if (pattPtr != NULL)
+		pattPos = editor.pattPos;
+		pattLen = pattLens[nr];
+
+		if (pattLen > 1)
 		{
-			pattPos = editor.pattPos;
-			pattLen = pattLens[nr];
-
-			if (pattLen > 1)
+			for (int32_t i = pattLen-2; i >= pattPos; i--)
 			{
-				for (int32_t i = pattLen-2; i >= pattPos; i--)
-				{
-					for (int32_t j = 0; j < MAX_VOICES; j++)
-						pattPtr[((i + 1) * MAX_VOICES) + j] = pattPtr[(i * MAX_VOICES) + j];
-				}
+				for (int32_t j = 0; j < MAX_VOICES; j++)
+					pattPtr[((i + 1) * MAX_VOICES) + j] = pattPtr[(i * MAX_VOICES) + j];
 			}
-
-			memset(&pattPtr[pattPos * MAX_VOICES], 0, TRACK_WIDTH);
-
-			killPatternIfUnused(nr);
 		}
 
-		editor.ui.updatePatternEditor = true;
-		setSongModifiedFlag();
+		memset(&pattPtr[pattPos * MAX_VOICES], 0, TRACK_WIDTH);
+
+		killPatternIfUnused(nr);
 	}
-	else
-	{
-		okBox(0, "System message", "Not enough memory!");
-	}
+
+	editor.ui.updatePatternEditor = true;
+	setSongModifiedFlag();
 }
 
 void deletePatternNote(void)
@@ -1851,7 +1835,7 @@ static bool askForScaleFade(char *msg)
 	uint8_t err;
 
 	sprintf(volstr, "%0.2f,%0.2f", dVolScaleFK1, dVolScaleFK2);
-	if (inputBox(2, msg, volstr, sizeof (volstr) - 1) != 1)
+	if (inputBox(1, msg, volstr, sizeof (volstr) - 1) != 1)
 		return false;
 
 	err = false;

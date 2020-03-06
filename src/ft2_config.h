@@ -21,7 +21,7 @@ enum
 	MOUSE_IDLE_SHAPE_NICE = 0,
 	MOUSE_IDLE_SHAPE_UGLY = 1,
 	MOUSE_IDLE_SHAPE_AWFUL = 2,
-	MOUSE_IDLE_SHAPE_USEABLE = 3,
+	MOUSE_IDLE_SHAPE_USABLE = 3,
 	MOUSE_IDLE_TEXT_EDIT = 4,
 
 	MOUSE_BUSY_SHAPE_CLOCK = 0,
@@ -71,7 +71,6 @@ enum
 	BUFFSIZE_512 = 8,
 	BUFFSIZE_1024 = 16,
 	BUFFSIZE_2048 = 32,
-	BUFFSIZE_4096 = 64,
 	LINED_SCOPES = 128,
 
 	// specialFlags2
@@ -125,7 +124,7 @@ typedef struct config_t // exact FT2.CFG layout (with some modifications)
 	int16_t recMIDIChn;
 	uint8_t recMIDIAllChn, recMIDITransp;
 	int16_t recMIDITranspVal;
-	uint8_t recMIDIVelosity, recMIDIAftert;
+	uint8_t recMIDIVelocity, recMIDIAftert;
 	int16_t recMIDIVolSens;
 	uint8_t recMIDIAllowPC, smpCutToBuffer, ptnCutToBuffer, killNotesOnStopPlay;
 	uint8_t specialFlags; // was lo-byte of "ptnDefaultLen" (never used in FT2)
@@ -157,7 +156,8 @@ typedef struct config_t // exact FT2.CFG layout (with some modifications)
 	uint16_t sampleRates[16];
 	uint8_t cfg_OverwriteWarning;
 	int16_t cfg_SortPriority, cfg_DPMIMemLimit;
-	uint8_t cfg_DPMIMemLimitEnabled, cdr_Sync;
+	uint8_t cfg_DPMIMemLimitEnabled;
+	uint8_t audioInputFreq; // was "cdr_Sync"
 }
 #ifdef __GNUC__
 __attribute__ ((packed))
@@ -197,22 +197,26 @@ void configMIDISensUp(void);
 void rbConfigIODevices(void);
 void rbConfigLayout(void);
 void rbConfigMiscellaneous(void);
+#ifdef HAS_MIDI
 void rbConfigMidiInput(void);
+#endif
 void rbConfigSbs512(void);
 void rbConfigSbs1024(void);
 void rbConfigSbs2048(void);
-void rbConfigSbs4096(void);
 void rbConfigAudio16bit(void);
 void rbConfigAudio24bit(void);
 void rbConfigAudio44kHz(void);
 void rbConfigAudio48kHz(void);
 void rbConfigAudio96kHz(void);
+void rbConfigAudioInput44kHz(void);
+void rbConfigAudioInput48kHz(void);
+void rbConfigAudioInput96kHz(void);
 void rbConfigFreqTableAmiga(void);
 void rbConfigFreqTableLinear(void);
 void rbConfigMouseNice(void);
 void rbConfigMouseUgly(void);
 void rbConfigMouseAwful(void);
-void rbConfigMouseUseable(void);
+void rbConfigMouseUsable(void);
 void rbConfigScopeStandard(void);
 void rbConfigMouseBusyVogue(void);
 void rbConfigMouseBusyMrH(void);
@@ -244,7 +248,7 @@ void cbConfigFramework(void);
 void cbConfigLineColors(void);
 void cbConfigChanNums(void);
 void cbConfigShowVolCol(void);
-void cbHardwareMouse(void);
+void cbSoftwareMouse(void);
 void cbSampCutToBuff(void);
 void cbPattCutToBuff(void);
 void cbKillNotesAtStop(void);
@@ -253,13 +257,13 @@ void cbMultiChanRec(void);
 void cbMultiChanKeyJazz(void);
 void cbMultiChanEdit(void);
 void cbRecKeyOff(void);
-void cbQuantisize(void);
+void cbQuantization(void);
 void cbChangePattLenInsDel(void);
 void cbMIDIAllowPC(void);
 void cbMIDIEnable(void);
 void cbMIDIRecTransp(void);
 void cbMIDIRecAllChn(void);
-void cbMIDIRecVelosity(void);
+void cbMIDIRecVelocity(void);
 void cbMIDIRecAftert(void);
 void cbVsyncOff(void);
 void cbFullScreen(void);

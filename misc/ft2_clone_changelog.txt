@@ -1,5 +1,127 @@
-Fasttracker II clone changelog (starting from beta #10 and up):
+Fasttracker II clone changelog
 NOTE: This may contain stuff that only a programmer understands!
+
+v1.10 - 03.03.2020
+- Bugfix: Channels were internally muted when the tracker was first started.
+  You'd get no sound when trying to load samples and entering them in the
+  pattern data. You had to load a song for them to properly unmute...
+  This has been a bug since v1.04, yikes!
+- The audio mixer's resampling interpolation was upgraded from 3-tap cubic to
+  4-tap cubic, without affecting the performance of the mixer.
+- Fixed some bugs in the .PAT (Gravis Utrasound patch) instrument loader
+- Fixed several bugs with the "Echo" toolbox (Sampler screen)
+- Bugfix: The "relative tone" section of the Instr. Ed. screen would get messed
+  up if loading a WAV/AIFF sample whose playback frequency is immensely large.
+- Code cleanup
+
+v1.09 - 12.02.2020
+- Fix: If a corrupt .XM doesn't contain all the sample data at the end of the
+  file, try to load what is left instead of showing an "Out of memory!" message.
+- Fix: Prevent upscaling factors higher than 2x on ARM devices. Fixes extreme
+  slowdowns on Raspberry Pi 4 with 2k or higher resolution screens.
+- The .MOD importer has been slightly improved for oldschool 15-sample formats
+- The .S3M importer has been slightly improved for certain effect cases not
+  compatible with FT2.
+- Audio mixer: Internal voice volumes are now calculated with 256 times higher
+  precision than FT2. Some other changes were also made to make sure the audio
+  mixing is always done at max precision regardless of the "amp" setting in
+  the config screen. These are changes that most people won't ever be able to
+  hear, but the speed performance of the mixer is still the same, so why not.
+- The audio dithering routine has now been improved (rectangular->triangular),
+  and it's now enabled by default on a fresh configuration, or if you reset it.
+
+v1.08 - 08.02.2020
+- Critical bugfix: Saved instruments (.xi) would end up being broken!
+- Linux bugfix: Loading a song by passing it to the executable's argument from a
+  terminal wouldn't work in most cases...
+- macOS/Linux bugfix: Don't show ".." directory when you are in root
+- Code fix: We don't want our main instrument/sample structs to be packed, only
+  the ones used during saving/loading of songs/instruments. This doesn't change
+  the behavior of the FT2 clone, but it prevents unaligned pointer access in the
+  replayer and other routines.
+- Small optimizations to pattern data rendering, those routines are quite slow!
+- Updated HOW-TO-COMPILE.txt
+
+v1.07 - 30.01.2020
+- Bugfix: After deleting the very last vol/pan envelope point, the currently
+  selected point wouldn't be properly set. This is actually a behavior/bug
+  from real FT2, but I wanted to fix it anyway.
+- Bugfix: Attempting to add a vol/pan envelope point to a completely empty
+  envelope would mess things up. Empty envelopes in an allocated instrument
+  shouldn't happen, but it happens when loading certain non-FT2 XMs.
+- Bugfix: The envelope plotter could display garbage on envelopes with tick
+  offsets above 324. Now it just cuts off at the end instead. Also yes, such
+  envelopes can be made! OpenMPT, f.ex., has no 0..324 limit for envelope ticks
+  in XM mode.
+- Bugfix: A couple of system request dialogs had the wrong button captions.
+  (Yes/No instead of OK/Cancel).
+- When pressing Esc. and the song is unmodified/saved, you'll now get the
+  classic joke quit dialogs from FT2 asking if you really want to quit.
+- Some minor optimizations and minor fixups. Nothing to write home about...
+- Windows 32-bit: This version now requires your CPU to have the SSE2
+  instruction set. Intel CPUs from around 2000 (AMD around 2003) and later
+  have it. In other words, it's not worth my time trying to make the clone
+  run on such old machines!
+  
+v1.06 - 15.01.2020
+- Bugfix: Scopes were not doing backwards sampling correctly on pingpong loops.
+  This would also affect the sample playback line in Smp. Ed. It was especially
+  noticable on very low sampling rates (note).
+- For devs: Added HAS_MIDI compiler pre-processor flag. If not defined, MIDI
+  will not be used in the clone. Handy for situations where rtmidi and/or
+  libstdc++ can't be used/compiled.
+ 
+v1.05 - 28.12.2019
+- Bugfix: When copying marked text in a text box, too much data would be copied
+- Changed default WAV rendering frequency (Harddisk recording) to 48kHz
+
+v1.04 - 17.12.2019
+- Fixed rare crash (or strange behaviors) when changing pattern and/or pattern
+  length while the song is playing.
+- Properly restore channel mute flags when loading a new song (fixes mute bugs)
+- Fixed a few bugs with different pattern buttons (Ins./Del., Ln. up/down etc)
+- Config: "Hardware mouse" was changed to "Software mouse" (and "Software mouse"
+  is now disabled in the default config).
+- Added a routine to create scaled FT2 mouse cursors for hardware mouse mode,
+  though the "busy mouse" will stand still and not animate.
+  Hopefully the new default "hardware mouse" mode will satisfy some people!
+- MacOS: Pass NDEBUG to clang preprocessor defines, to prevent debug code
+  from being compiled in release mode (performance increase).
+- MacOS/Linux: make scripts had Windows linefeeds and would thus break!
+
+* Note: I highly recommend that you go to "Config -> Layout" and disable
+  "Software mouse"! This will make the mouse way less laggy. However, it will
+  still be one frame delayed internally unless you disable VSync.
+  
+v1.03 - 28.11.2019
+- A ton of radiobuttons in the GUI simply did not work anymore in v1.02.
+  I can't believe I didn't notice until now. Sorry!
+
+v1.02 - 23.11.2019
+- You can now select the audio input (sampling) rate in the config screen.
+  (44.1kHz, 48kHz or 96kHz)
+- Fixed some misinformation in the "Known bugs" help text ("clear sample")
+- Fixed some "original" typos in the UI texts (and also renamed stuff that
+  wasn't very understandable).
+- Removed the "Very large" buffer size setting in Config -> I/O devices
+- Increased the width of the Disk Op. filename text box
+- Tweaked some other minor stuff
+
+v1.01 - 21.10.2019:
+- Windows: Fixed an issue where the program would consume a lot of CPU time
+  when the window was minimized.
+
+v1.00 - 25.09.2019:
+- This is now the first "stable" release, and it's not in beta anymore
+- Some very small fixes to the scopes
+- macOS: Added ctrl+cmd+f keybinding to toggle fullscreen (same as alt+enter)
+- macOS: Fix huge delay before main window pops ups when opening .XMs associated
+  with the clone by double-clicking on them.
+- macOS: Finetuned a couple of things in the .app package. Version string and
+  "document types" for file->program association.
+- Renamed binary/folder/zip names
+
+
 
 Beta #168 - 04.09.2019
 - Forgot to remove some Nibbles test code that resulted in your score being

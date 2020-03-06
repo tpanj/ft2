@@ -30,7 +30,7 @@ enum // SCROLLBARS
 	SB_INST_EXT_MIDI_PRG,
 	SB_INST_EXT_MIDI_BEND,
 
-	// Config I/O Devices
+	// Config I/O devices
 	SB_AUDIO_OUTPUT_SCROLL,
 	SB_AUDIO_INPUT_SCROLL,
 	SB_AMP_SCROLL,
@@ -45,8 +45,10 @@ enum // SCROLLBARS
 	// Config Miscellaneous
 	SB_MIDI_SENS,
 
+#ifdef HAS_MIDI
 	// Config Midi
 	SB_MIDI_INPUT_SCROLL,
+#endif
 
 	// Disk Op.
 	SB_DISKOP_LIST,
@@ -73,6 +75,7 @@ typedef struct scrollBar_t // DO NOT TOUCH!
 	bool visible;
 	uint8_t state;
 	uint32_t pos, page, end;
+	uint32_t oldPos, oldPage, oldEnd;
 	uint16_t thumbX, thumbY, thumbW, thumbH; 
 } scrollBar_t;
 

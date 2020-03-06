@@ -161,7 +161,7 @@ void drawAudioOutputList(void)
 			if (audio.currOutputDevice != NULL)
 			{
 				if (strcmp(audio.currOutputDevice, audio.outputDeviceNames[deviceEntry]) == 0)
-					fillRect(114, y, AUDIO_SELECTORS_BOX_WIDTH, 10, PAL_BUTTONS); // selection background color
+					fillRect(114, y, AUDIO_SELECTORS_BOX_WIDTH, 10, PAL_BOXSLCT); // selection background color
 			}
 
 			tmpString = utf8ToCp437(audio.outputDeviceNames[deviceEntry], true);
@@ -180,7 +180,7 @@ void drawAudioInputList(void)
 	uint16_t y;
 	int32_t deviceEntry;
 
-	clearRect(114, 105, AUDIO_SELECTORS_BOX_WIDTH, 65);
+	clearRect(114, 105, AUDIO_SELECTORS_BOX_WIDTH, 44);
 
 	if (audio.inputDeviceNum == 0)
 	{
@@ -188,7 +188,7 @@ void drawAudioInputList(void)
 		return;
 	}
 
-	for (int32_t i = 0; i < 6; i++)
+	for (int32_t i = 0; i < 4; i++)
 	{
 		deviceEntry = getScrollBarPos(SB_AUDIO_INPUT_SCROLL) + i;
 		if (deviceEntry < audio.inputDeviceNum)
@@ -201,7 +201,7 @@ void drawAudioInputList(void)
 			if (audio.currInputDevice != NULL)
 			{
 				if (strcmp(audio.currInputDevice, audio.inputDeviceNames[deviceEntry]) == 0)
-					fillRect(114, y, AUDIO_SELECTORS_BOX_WIDTH, 10, PAL_BUTTONS); // selection background color
+					fillRect(114, y, AUDIO_SELECTORS_BOX_WIDTH, 10, PAL_BOXSLCT); // selection background color
 			}
 
 			tmpString = utf8ToCp437(audio.inputDeviceNames[deviceEntry], true);
@@ -226,7 +226,7 @@ bool testAudioDeviceListsMouseDown(void)
 	mx = mouse.x;
 	my = mouse.y;
 
-	if (my < 18 || my > 170 || mx < 114 || mx >= 114+AUDIO_SELECTORS_BOX_WIDTH)
+	if (my < 18 || my > 149 || mx < 114 || mx >= 114+AUDIO_SELECTORS_BOX_WIDTH)
 		return false;
 
 	if (my < 84)
@@ -238,7 +238,7 @@ bool testAudioDeviceListsMouseDown(void)
 			return true;
 
 		devString = audio.outputDeviceNames[deviceNum];
-		if (audio.currOutputDevice == NULL || strcmp(audio.currOutputDevice, devString) != 0)
+		if (devString != NULL && (audio.currOutputDevice == NULL || strcmp(audio.currOutputDevice, devString) != 0))
 		{
 			if (audio.currOutputDevice != NULL)
 				free(audio.currOutputDevice);
@@ -270,7 +270,7 @@ bool testAudioDeviceListsMouseDown(void)
 			return true;
 
 		devString = audio.inputDeviceNames[deviceNum];
-		if (audio.currInputDevice == NULL || strcmp(audio.currInputDevice, devString) != 0)
+		if (devString != NULL && (audio.currInputDevice == NULL || strcmp(audio.currInputDevice, devString) != 0))
 		{
 			if (audio.currInputDevice != NULL)
 				free(audio.currInputDevice);

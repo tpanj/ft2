@@ -5,20 +5,22 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "ft2_config.h"
 #include "ft2_gui.h"
 #include "ft2_mouse.h"
 #include "ft2_sample_ed.h"
 #include "ft2_video.h"
+#include "ft2_sampling.h"
 
 // these may very well change after opening the audio input device
 #define SAMPLING_BUFFER_SIZE 2048
-#define SAMPLING_FREQUENCY 44100
 
 static bool sampleInStereo;
 static volatile bool drawSamplingBufferFlag, outOfMemoryFlag, noMoreRoomFlag;
 static int16_t *currWriteBuf;
 static int16_t displayBuffer1[SAMPLING_BUFFER_SIZE * 2], displayBuffer2[SAMPLING_BUFFER_SIZE * 2];
 static int32_t bytesSampled, samplingBufferBytes;
+static uint32_t samplingRate;
 static volatile int32_t currSampleLen;
 static SDL_AudioDeviceID recordDev;
 static int16_t rightChSmpSlot = -1;
@@ -35,7 +37,7 @@ static void SDLCALL samplingCallback(void *userdata, Uint8 *stream, int len)
 
 	s = &instr[editor.curInstr]->samp[editor.curSmp];
 
-	newPtr = (int8_t *)realloc(s->pek, s->len + len);
+	newPtr = (int8_t *)realloc(s->origPek, (s->len + len) + LOOP_FIX_LEN);
 	if (newPtr == NULL)
 	{
 		drawSamplingBufferFlag = false;
@@ -43,7 +45,9 @@ static void SDLCALL samplingCallback(void *userdata, Uint8 *stream, int len)
 		return;
 	}
 
-	s->pek = newPtr;
+	s->origPek = newPtr;
+	s->pek = s->origPek + SMP_DAT_OFFSET;
+
 	memcpy(&s->pek[s->len], stream, len);
 
 	s->len += len;
@@ -101,15 +105,16 @@ void stopSampling(void)
 		{
 			nextSmp = &instr[editor.curInstr]->samp[rightChSmpSlot];
 
-			nextSmp->pek = (int8_t *)malloc((currSmp->len / 2) + LOOP_FIX_LEN);
-			if (nextSmp->pek != NULL)
+			nextSmp->origPek = (int8_t *)malloc((currSmp->len >> 1) + LOOP_FIX_LEN);
+			if (nextSmp->origPek != NULL)
 			{
-				nextSmp->len = currSmp->len / 2;
+				nextSmp->pek = nextSmp->origPek + SMP_DAT_OFFSET;
+				nextSmp->len = currSmp->len >> 1;
 
 				src16 = (int16_t *)currSmp->pek;
 				dst16 = (int16_t *)nextSmp->pek;
 
-				len = nextSmp->len / 2;
+				len = nextSmp->len >> 1;
 				for (i = 0; i < len; i++)
 					dst16[i] = src16[(i << 1) + 1];
 			}
@@ -118,28 +123,36 @@ void stopSampling(void)
 				freeSample(editor.curInstr, rightChSmpSlot);
 			}
 
-			currSmp->len /= 2;
+			currSmp->len >>= 1;
 
 			// read left channel data by skipping every other sample
 
 			dst16 = (int16_t *)currSmp->pek;
 
-			len = currSmp->len / 2;
+			len = currSmp->len >> 1;
 			for (i = 0; i < len; i++)
 				dst16[i] = dst16[i << 1];
 		}
 	}
 
-	if (currSmp->pek != NULL)
+	if (currSmp->origPek != NULL)
 	{
-		newPtr = (int8_t *)realloc(currSmp->pek, currSmp->len + LOOP_FIX_LEN);
+		newPtr = (int8_t *)realloc(currSmp->origPek, currSmp->len + LOOP_FIX_LEN);
 		if (newPtr != NULL)
-			currSmp->pek = newPtr;
+		{
+			currSmp->origPek = newPtr;
+			currSmp->pek = currSmp->origPek + SMP_DAT_OFFSET;
+		}
+
+		fixSample(currSmp);
 	}
 	else
 	{
 		freeSample(editor.curInstr, editor.curSmp);
 	}
+
+	if (nextSmp != NULL && nextSmp->origPek != NULL)
+		fixSample(nextSmp);
 
 	updateSampleEditorSample();
 	editor.updateCurInstr = true;
@@ -230,8 +243,6 @@ static void drawSamplingPreview(void)
 	uint16_t x;
 	int32_t smpIdx, smpNum;
 	uint32_t *centerPtrL, *centerPtrR, pixVal;
-
-#define SAMPLEL_AREA_Y_CENTER 250
 
 	pixVal = video.palette[PAL_PATTEXT];
 
@@ -336,19 +347,18 @@ void handleSamplingUpdates(void)
 
 void startSampling(void)
 {
-	int16_t result;
-
 #if SDL_PATCHLEVEL < 5
-	okBox(2, "System message", "This program needs to be compiled with SDL 2.0.5 or later to support audio sampling.");
+	okBox(0, "System message", "This program needs to be compiled with SDL 2.0.5 or later to support audio sampling.");
 	return;
 #else
+	int16_t result;
 	SDL_AudioSpec want, have;
 	sampleTyp *s, *nextSmp;
 
 	if (editor.samplingAudioFlag || editor.curInstr == 0)
 		return;
 
-	result = okBox(9, "System request", "Stereo sampling will use the next sample slot. While ongoing, press any key to stop. ");
+	result = okBox(9, "System request", "Stereo sampling will use the next sample slot. While ongoing, press any key to stop.");
 	if (result == 0 || result == 3)
 		return;
 
@@ -357,18 +367,31 @@ void startSampling(void)
 
 	mouseAnimOn();
 
+	switch (config.audioInputFreq)
+	{
+		case INPUT_FREQ_96KHZ: samplingRate = 96000; break;
+
+#ifdef __APPLE__
+		case INPUT_FREQ_48KHZ: samplingRate = 48000; break;
+		default: samplingRate = 44100; break;
+#else
+		case INPUT_FREQ_44KHZ: samplingRate = 44100; break;
+		default: samplingRate = 48000; break;
+#endif
+	}
+
 	memset(&want, 0, sizeof (SDL_AudioSpec));
-	want.freq = SAMPLING_FREQUENCY;
+	want.freq = samplingRate;
 	want.format = AUDIO_S16;
 	want.channels = 1 + sampleInStereo;
 	want.callback = samplingCallback;
 	want.userdata = NULL;
 	want.samples = SAMPLING_BUFFER_SIZE;
 
-	recordDev = SDL_OpenAudioDevice(audio.currInputDevice, true, &want, &have, SDL_AUDIO_ALLOW_FREQUENCY_CHANGE);
+	recordDev = SDL_OpenAudioDevice(audio.currInputDevice, true, &want, &have, 0);
 	if (recordDev == 0)
 	{
-		okBox(0, "System message", "Couldn't open audio input device.");
+		okBox(0, "System message", "Couldn't open the input device! Try adjusting the input rate at the config screen.");
 		return;
 	}
 
@@ -387,7 +410,7 @@ void startSampling(void)
 	freeSample(editor.curInstr, editor.curSmp);
 	s->typ |= 16; // we always sample in 16-bit
 
-	tuneSample(s, have.freq); // tune sample (relTone/finetune) to the sampling frequency we obtained
+	tuneSample(s, samplingRate); // tune sample (relTone/finetune) to the sampling frequency we obtained
 
 	if (sampleInStereo)
 	{
@@ -409,7 +432,7 @@ void startSampling(void)
 			nextSmp->typ |= 16; // we always sample in 16-bit
 			nextSmp->pan = 255;
 
-			tuneSample(nextSmp, have.freq); // tune sample (relTone/finetune) to the sampling frequency we obtained
+			tuneSample(nextSmp, samplingRate); // tune sample (relTone/finetune) to the sampling frequency we obtained
 		}
 	}
 	else

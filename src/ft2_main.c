@@ -32,7 +32,9 @@
 #include "ft2_midi.h"
 #include "ft2_events.h"
 
+#ifdef HAS_MIDI
 static SDL_Thread *initMidiThread;
+#endif
 
 static void setupPerfFreq(void);
 static void initializeVars(void);
@@ -101,6 +103,13 @@ int main(int argc, char *argv[])
 		return 0;
 	}
 
+	if (!cpu.hasSSE2)
+	{
+		showErrorMsgBox("Your computer's processor doesn't have the SSE2 instruction set\n" \
+		                "which is needed for this program to run. Sorry!");
+		return 0;
+	}
+
 	setupWin32Usleep();
 	disableWasapi(); // disable problematic WASAPI SDL2 audio driver on Windows (causes clicks/pops sometimes...)
 #endif
@@ -118,8 +127,7 @@ int main(int argc, char *argv[])
 		showErrorMsgBox("Couldn't initialize SDL:\n%s", SDL_GetError());
 		return 1;
 	}
-
-	createSDL2Cursors();
+	SDL_EventState(SDL_DROPFILE, SDL_ENABLE);
 
 	/* Text input is started by default in SDL2, turn it off to remove ~2ms spikes per key press.
 	** We manuallay start it again when a text edit box is activated, and stop it when done.
@@ -167,7 +175,7 @@ int main(int argc, char *argv[])
 		config.audioFreq = 48000;
 #endif
 		// try 16-bit audio at 1024 samples (44.1kHz/48kHz)
-		config.specialFlags &= ~(BITDEPTH_24 + BUFFSIZE_512 + BUFFSIZE_2048 + BUFFSIZE_4096);
+		config.specialFlags &= ~(BITDEPTH_24 + BUFFSIZE_512 + BUFFSIZE_2048);
 		config.specialFlags |=  (BITDEPTH_16 + BUFFSIZE_1024);
 
 		setToDefaultAudioOutputDevice();
@@ -188,15 +196,17 @@ int main(int argc, char *argv[])
 	resumeAudio();
 	rescanAudioDevices();
 
+#ifdef _WIN32 // on Windows we show the window at this point
 	SDL_ShowWindow(video.window);
+#endif
+
 	if (config.windowFlags & START_IN_FULLSCR)
 	{
 		video.fullscreen = true;
 		enterFullscreen();
 	}
 
-	//benchmarkAudioChannelMixer(); // for development testing
-
+#ifdef HAS_MIDI
 	// set up MIDI input (in a thread because it can take quite a while on f.ex. macOS)
 	initMidiThread = SDL_CreateThread(initMidiFunc, NULL, NULL);
 	if (initMidiThread == NULL)
@@ -206,11 +216,13 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 	SDL_DetachThread(initMidiThread); // don't wait for this thread, let it clean up when done
+#endif
 
-	SDL_EventState(SDL_DROPFILE, SDL_ENABLE);
-
-	setupWaitVBL();
+	setupWaitVBL(); // this is needed for potential okBox() calls in handleModuleLoadFromArg()
 	handleModuleLoadFromArg(argc, argv);
+	setupWaitVBL(); // yes, this is needed again for main loop
+
+	editor.mainLoopOngoing = true;
 	while (editor.programRunning)
 	{
 		beginFPSCounter();
@@ -233,18 +245,18 @@ static void initializeVars(void)
 {
 	int32_t i;
 
-	cpu.hasSSE  = SDL_HasSSE();
+	cpu.hasSSE = SDL_HasSSE();
 	cpu.hasSSE2 = SDL_HasSSE2();
 
 	// clear common structs
-	memset(&video,    0, sizeof (video));
-	memset(&keyb,     0, sizeof (keyb));
-	memset(&mouse,    0, sizeof (mouse));
-	memset(&editor,   0, sizeof (editor));
+	memset(&video, 0, sizeof (video));
+	memset(&keyb, 0, sizeof (keyb));
+	memset(&mouse, 0, sizeof (mouse));
+	memset(&editor, 0, sizeof (editor));
 	memset(&pattMark, 0, sizeof (pattMark));
 	memset(&pattSync, 0, sizeof (pattSync));
-	memset(&chSync,   0, sizeof (chSync));
-	memset(&song,     0, sizeof (song));
+	memset(&chSync, 0, sizeof (chSync));
+	memset(&song, 0, sizeof (song));
 
 	for (i = 0; i < MAX_VOICES; i++)
 	{
@@ -280,22 +292,26 @@ static void initializeVars(void)
 	editor.ptnJumpPos[3] = 0x30;
 
 	editor.copyMaskEnable = true;
-	memset(editor.copyMask,  1, sizeof (editor.copyMask));
+	memset(editor.copyMask, 1, sizeof (editor.copyMask));
 	memset(editor.pasteMask, 1, sizeof (editor.pasteMask));
 
+#ifdef HAS_MIDI
 	midi.enable = true;
+#endif
 
 	editor.diskOpReadOnOpen = true;
-	editor.programRunning   = true;
+	editor.programRunning = true;
 }
 
 static void cleanUpAndExit(void) // never call this inside the main loop!
 {
+#ifdef HAS_MIDI
 	if (midi.closeMidiOnExit)
 	{
 		closeMidiInDevice();
 		freeMidiIn();
 	}
+#endif
 
 	closeAudio();
 	closeReplayer();
@@ -304,16 +320,20 @@ static void cleanUpAndExit(void) // never call this inside the main loop!
 	freeDiskOp();
 	clearCopyBuffer();
 	freeAudioDeviceSelectorBuffers();
+#ifdef HAS_MIDI
 	freeMidiInputDeviceList();
+#endif
 	windUpFTHelp();
 	freeTextBoxes();
-	freeSDL2Cursors();
+	freeMouseCursors();
 
+#ifdef HAS_MIDI
 	if (midi.inputDeviceName != NULL)
 	{
 		free(midi.inputDeviceName);
 		midi.inputDeviceName = NULL;
 	}
+#endif
 
 	if (editor.audioDevConfigFileLocation != NULL)
 	{
@@ -394,10 +414,8 @@ static void setupPerfFreq(void)
 	video.vblankTimeLen = (uint32_t)dInt;
 
 	// fractional part scaled to 0..2^32-1
-	dFrac *= UINT32_MAX + 1.0;
-	if (dFrac > (double)UINT32_MAX)
-		dFrac = (double)UINT32_MAX;
-	video.vblankTimeLenFrac = (uint32_t)round(dFrac);
+	dFrac *= UINT32_MAX;
+	video.vblankTimeLenFrac = (uint32_t)(dFrac + 0.5);
 }
 
 #ifdef _WIN32

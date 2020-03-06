@@ -20,6 +20,7 @@
 #include "ft2_wav_renderer.h"
 #include "ft2_mouse.h"
 #include "ft2_video.h"
+#include "ft2_tables.h"
 
 // for pattern marking w/ keyboard
 static int8_t lastChMark;
@@ -37,16 +38,9 @@ static const uint16_t iSwitchExtX[4] = { 221, 262, 303, 344 };
 
 static int32_t lastMouseX, lastMouseY;
 
-// defined at the bottom of this file
-extern const pattCoordsMouse_t pattCoordMouseTable[2][2][2];
-
-// globalized
-const uint16_t chanWidths[6] = { 141, 141, 93, 69, 45, 45 };
-
 bool allocatePattern(uint16_t nr) // for tracker use only, not in loader!
 {
 	bool audioWasntLocked;
-	int16_t pattLen;
 
 	if (patt[nr] == NULL)
 	{
@@ -54,9 +48,14 @@ bool allocatePattern(uint16_t nr) // for tracker use only, not in loader!
 		if (audioWasntLocked)
 			lockAudio();
 
-		pattLen = pattLens[nr];
+		/* Original FT2 allocates only the amount of rows needed, but we don't
+		** do that to avoid out of bondary row look-up between out-of-sync replayer
+		** state and tracker state (yes it used to happen, rarely). We're not wasting
+		** too much RAM for a modern computer anyway. Worst case: 256 allocated
+		** patterns would be ~10MB.
+		**/
 
-		patt[nr] = (tonTyp *)calloc(pattLen * TRACK_WIDTH, sizeof (tonTyp));
+		patt[nr] = (tonTyp *)calloc((MAX_PATT_LEN * TRACK_WIDTH) + 16, 1);
 		if (patt[nr] == NULL)
 		{
 			if (audioWasntLocked)
@@ -65,8 +64,8 @@ bool allocatePattern(uint16_t nr) // for tracker use only, not in loader!
 			return false;
 		}
 
-		if (song.pattNr == nr)
-			song.pattLen = pattLen;
+		// XXX: Do we really need this? Sounds redundant.
+		song.pattLen = pattLens[nr];
 
 		if (audioWasntLocked)
 			unlockAudio();
@@ -121,6 +120,8 @@ void updatePatternWidth(void)
 {
 	if (editor.ui.numChannelsShown > editor.ui.maxVisibleChannels)
 		editor.ui.numChannelsShown = editor.ui.maxVisibleChannels;
+
+	assert(editor.ui.numChannelsShown >= 2 && editor.ui.numChannelsShown <= 12);
 
 	editor.ui.patternChannelWidth = chanWidths[(editor.ui.numChannelsShown / 2) - 1] + 3;
 }
@@ -526,7 +527,7 @@ static void updatePatternEditorGUI(void)
 		pushButtons[PB_POSED_PATT_UP].y = 20;
 		pushButtons[PB_POSED_PATT_DOWN].y = 20;
 		pushButtons[PB_POSED_DEL].y = 35;
-		pushButtons[PB_SWAP_BANK].caption = "Swap B.";
+		pushButtons[PB_SWAP_BANK].caption = "Swap b.";
 		pushButtons[PB_SWAP_BANK].caption2 = NULL;
 		pushButtons[PB_SWAP_BANK].x = 162;
 		pushButtons[PB_SWAP_BANK].y = 35;
@@ -581,7 +582,7 @@ static void updatePatternEditorGUI(void)
 		pushButtons[PB_POSED_PATT_DOWN].y = 19;
 		pushButtons[PB_POSED_DEL].y = 33;
 		pushButtons[PB_SWAP_BANK].caption = "Swap";
-		pushButtons[PB_SWAP_BANK].caption2 = "Bank";
+		pushButtons[PB_SWAP_BANK].caption2 = "bank";
 		pushButtons[PB_SWAP_BANK].x = 590;
 		pushButtons[PB_SWAP_BANK].y = 144;
 		pushButtons[PB_SWAP_BANK].w = 39;
@@ -652,7 +653,13 @@ void patternEditorExtended(void)
 	drawFramework(2,  2, 51, 20, FRAMEWORK_TYPE2);
 	drawFramework(2, 31, 51, 20, FRAMEWORK_TYPE2);
 
+	// force updating of end/page/length when showing scrollbar
+	scrollBars[SB_POS_ED].oldEnd = 0xFFFFFFFF;
+	scrollBars[SB_POS_ED].oldPage = 0xFFFFFFFF;
+	scrollBars[SB_POS_ED].oldPos = 0xFFFFFFFF;
+
 	showScrollBar(SB_POS_ED);
+
 	showPushButton(PB_POSED_POS_UP);
 	showPushButton(PB_POSED_POS_DOWN);
 	showPushButton(PB_POSED_INS);
@@ -878,7 +885,7 @@ void handlePatternDataMouseDown(bool mouseButtonHeld)
 	{
 		if (mouse.x < 29)
 		{
-			scrollBarScrollUp(SB_CHAN_SCROLL,   1);
+			scrollBarScrollUp(SB_CHAN_SCROLL, 1);
 			forceMarking = true;
 		}
 		else if (mouse.x > 604)
@@ -925,7 +932,7 @@ void handlePatternDataMouseDown(bool mouseButtonHeld)
 		{
 			pattLen = pattLens[editor.editPattern];
 			if (editor.pattPos > 0)
-				setPos(-1, editor.pattPos - 1);
+				setPos(-1, editor.pattPos - 1, true);
 
 			forceMarking = true;
 			editor.ui.updatePatternEditor = true;
@@ -934,7 +941,7 @@ void handlePatternDataMouseDown(bool mouseButtonHeld)
 		{
 			pattLen = pattLens[editor.editPattern];
 			if (editor.pattPos < (pattLen - 1))
-				setPos(-1, editor.pattPos + 1);
+				setPos(-1, editor.pattPos + 1, true);
 
 			forceMarking = true;
 			editor.ui.updatePatternEditor = true;
@@ -1504,6 +1511,7 @@ void jumpToChannel(uint8_t channel) // for ALT+q..i ALT+a..k
 	if (editor.ui.pattChanScrollShown)
 	{
 		assert(song.antChn > editor.ui.numChannelsShown);
+
 		if (channel >= editor.ui.channelOffset+editor.ui.numChannelsShown)
 			scrollBarScrollDown(SB_CHAN_SCROLL, (channel - (editor.ui.channelOffset + editor.ui.numChannelsShown)) + 1);
 		else if (channel < editor.ui.channelOffset)
@@ -1521,7 +1529,7 @@ void sbPosEdPos(uint32_t pos)
 		lockAudio();
 
 	if (song.songPos != (int16_t)pos)
-		setPos((int16_t)pos, 0);
+		setPos((int16_t)pos, 0, true);
 
 	if (audioWasntLocked)
 		unlockAudio();
@@ -1534,7 +1542,7 @@ void pbPosEdPosUp(void)
 		lockAudio();
 
 	if (song.songPos < song.len-1)
-		setPos(song.songPos + 1, 0);
+		setPos(song.songPos + 1, 0, true);
 
 	if (audioWasntLocked)
 		unlockAudio();
@@ -1547,7 +1555,7 @@ void pbPosEdPosDown(void)
 		lockAudio();
 
 	if (song.songPos > 0)
-		setPos(song.songPos - 1, 0);
+		setPos(song.songPos - 1, 0, true);
 
 	if (audioWasntLocked)
 		unlockAudio();
@@ -1568,12 +1576,9 @@ void pbPosEdIns(void)
 	song.songTab[song.songPos] = oldPatt;
 
 	song.len++;
-	setScrollBarEnd(SB_POS_ED, (song.len - 1) + 5);
-
-	drawPosEdNums(song.songPos);
-	drawSongLength();
 
 	editor.ui.updatePosSections = true;
+	editor.ui.updatePosEdScrollBar = true;
 	setSongModifiedFlag();
 
 	unlockMixerCallback();
@@ -1581,34 +1586,29 @@ void pbPosEdIns(void)
 
 void pbPosEdDel(void)
 {
-	if (song.len == 0)
+	if (song.len <= 1)
 		return;
 
 	lockMixerCallback();
 
-	for (uint16_t i = 0; i < 254-song.songPos; i++)
-		song.songTab[song.songPos+i] = song.songTab[song.songPos+1+i];
-	song.len--;
-
-	if (song.repS >= song.len)
+	if (song.songPos < 254)
 	{
-		song.repS =  song.len - 1;
-		drawSongRepS();
+		for (uint16_t i = 0; i < 254-song.songPos; i++)
+			song.songTab[song.songPos+i] = song.songTab[song.songPos+1+i];
 	}
+
+	song.len--;
+	if (song.repS >= song.len)
+		song.repS = song.len - 1;
 
 	if (song.songPos > song.len-1)
 	{
-		song.songPos = song.len-1;
-		setPos(song.songPos, -1);
-
+		editor.songPos = song.songPos = song.len-1;
+		setPos(song.songPos, -1, false);
 	}
 
-	setScrollBarEnd(SB_POS_ED, (song.len - 1) + 5);
-
-	drawPosEdNums(song.songPos);
-	drawSongLength();
-
-	setPos(song.songPos, -1);
+	editor.ui.updatePosSections = true;
+	editor.ui.updatePosEdScrollBar = true;
 	setSongModifiedFlag();
 
 	unlockMixerCallback();
@@ -1616,6 +1616,9 @@ void pbPosEdDel(void)
 
 void pbPosEdPattUp(void)
 {
+	if (song.songTab[song.songPos] == 255)
+		return;
+
 	lockMixerCallback();
 	if (song.songTab[song.songPos] < 255)
 	{
@@ -1624,11 +1627,8 @@ void pbPosEdPattUp(void)
 		editor.editPattern = (uint8_t)song.pattNr;
 		song.pattLen = pattLens[editor.editPattern];
 
-		drawPosEdNums(song.songPos);
-		drawEditPattern(editor.editPattern);
-		drawPatternLength(editor.editPattern);
-
 		editor.ui.updatePatternEditor = true;
+		editor.ui.updatePosSections = true;
 		setSongModifiedFlag();
 	}
 	unlockMixerCallback();
@@ -1636,6 +1636,9 @@ void pbPosEdPattUp(void)
 
 void pbPosEdPattDown(void)
 {
+	if (song.songTab[song.songPos] == 0)
+		return;
+
 	lockMixerCallback();
 	if (song.songTab[song.songPos] > 0)
 	{
@@ -1644,11 +1647,8 @@ void pbPosEdPattDown(void)
 		editor.editPattern = (uint8_t)song.pattNr;
 		song.pattLen = pattLens[editor.editPattern];
 
-		drawPosEdNums(song.songPos);
-		drawEditPattern(editor.editPattern);
-		drawPatternLength(editor.editPattern);
-
 		editor.ui.updatePatternEditor = true;
+		editor.ui.updatePosSections = true;
 		setSongModifiedFlag();
 	}
 	unlockMixerCallback();
@@ -1667,10 +1667,8 @@ void pbPosEdLenUp(void)
 
 	song.len++;
 
-	drawPosEdNums(song.songPos);
-	drawSongLength();
-
-	setScrollBarEnd(SB_POS_ED, (song.len - 1) + 5);
+	editor.ui.updatePosSections = true;
+	editor.ui.updatePosEdScrollBar = true;
 	setSongModifiedFlag();
 
 	if (audioWasntLocked)
@@ -1691,22 +1689,16 @@ void pbPosEdLenDown(void)
 	song.len--;
 
 	if (song.repS >= song.len)
-	{
 		song.repS = song.len - 1;
-		drawSongRepS();
-	}
 
 	if (song.songPos >= song.len)
 	{
 		song.songPos = song.len - 1;
-		setScrollBarPos(SB_POS_ED, song.songPos, false);
-		setPos(song.songPos, -1);
+		setPos(song.songPos, -1, false);
 	}
 
-	drawPosEdNums(song.songPos);
-	drawSongLength();
-
-	setScrollBarEnd(SB_POS_ED, (song.len - 1) + 5);
+	editor.ui.updatePosSections = true;
+	editor.ui.updatePosEdScrollBar = true;
 	setSongModifiedFlag();
 
 	if (audioWasntLocked)
@@ -1722,7 +1714,7 @@ void pbPosEdRepSUp(void)
 	if (song.repS < song.len-1)
 	{
 		song.repS++;
-		drawSongRepS();
+		editor.ui.updatePosSections = true;
 		setSongModifiedFlag();
 	}
 
@@ -1739,7 +1731,7 @@ void pbPosEdRepSDown(void)
 	if (song.repS > 0)
 	{
 		song.repS--;
-		drawSongRepS();
+		editor.ui.updatePosSections = true;
 		setSongModifiedFlag();
 	}
 
@@ -1749,6 +1741,9 @@ void pbPosEdRepSDown(void)
 
 void pbBPMUp(void)
 {
+	if (song.speed == 255)
+		return;
+
 	bool audioWasntLocked = !audio.locked;
 	if (audioWasntLocked)
 		lockAudio();
@@ -1772,6 +1767,9 @@ void pbBPMUp(void)
 
 void pbBPMDown(void)
 {
+	if (song.speed == 32)
+		return;
+
 	bool audioWasntLocked = !audio.locked;
 	if (audioWasntLocked)
 		lockAudio();
@@ -1795,6 +1793,9 @@ void pbBPMDown(void)
 
 void pbSpeedUp(void)
 {
+	if (song.tempo == 31)
+		return;
+
 	bool audioWasntLocked = !audio.locked;
 	if (audioWasntLocked)
 		lockAudio();
@@ -1817,6 +1818,9 @@ void pbSpeedUp(void)
 
 void pbSpeedDown(void)
 {
+	if (song.tempo == 0)
+		return;
+
 	bool audioWasntLocked = !audio.locked;
 	if (audioWasntLocked)
 		lockAudio();
@@ -1903,33 +1907,55 @@ static void updatePtnLen(void)
 	uint16_t len = pattLens[editor.editPattern];
 
 	song.pattLen = len;
-	editor.pattPos = song.pattPos = CLAMP(song.pattPos, 0, len - 1);
+	if (song.pattPos >= len)
+	{
+		song.pattPos = len - 1;
+		editor.pattPos = song.pattPos;
+	}
 
 	checkMarkLimits();
 }
 
 void pbEditPattUp(void)
 {
+	if (songPlaying)
+	{
+		if (song.pattNr == 255)
+			return;
+	}
+	else
+	{
+		if (editor.editPattern == 255)
+			return;
+	}
+
 	bool audioWasntLocked = !audio.locked;
 	if (audioWasntLocked)
 		lockAudio();
 
-	if (editor.editPattern < 255)
+	if (songPlaying)
 	{
-		editor.editPattern++;
-
-		song.pattNr = editor.editPattern;
-		updatePtnLen();
-
-		if (!editor.ui.aboutScreenShown && !editor.ui.configScreenShown &&
-			!editor.ui.diskOpShown      && !editor.ui.helpScreenShown   &&
-			!editor.ui.nibblesShown)
+		if (song.pattNr < 255)
 		{
-			drawEditPattern(editor.editPattern);
-			drawPatternLength(editor.editPattern);
-		}
+			song.pattNr++;
+			updatePtnLen();
 
-		editor.ui.updatePatternEditor = true;
+			editor.ui.updatePatternEditor = true;
+			editor.ui.updatePosSections = true;
+		}
+	}
+	else
+	{
+		if (editor.editPattern < 255)
+		{
+			editor.editPattern++;
+
+			song.pattNr = editor.editPattern;
+			updatePtnLen();
+
+			editor.ui.updatePatternEditor = true;
+			editor.ui.updatePosSections = true;
+		}
 	}
 
 	if (audioWasntLocked)
@@ -1938,26 +1964,44 @@ void pbEditPattUp(void)
 
 void pbEditPattDown(void)
 {
+	if (songPlaying)
+	{
+		if (song.pattNr == 0)
+			return;
+	}
+	else
+	{
+		if (editor.editPattern == 0)
+			return;
+	}
+
 	bool audioWasntLocked = !audio.locked;
 	if (audioWasntLocked)
 		lockAudio();
 
-	if (editor.editPattern > 0)
+	if (songPlaying)
 	{
-		editor.editPattern--;
-
-		song.pattNr = editor.editPattern;
-		updatePtnLen();
-
-		if (!editor.ui.aboutScreenShown && !editor.ui.configScreenShown &&
-			!editor.ui.diskOpShown      && !editor.ui.helpScreenShown   &&
-			!editor.ui.nibblesShown)
+		if (song.pattNr > 0)
 		{
-			drawEditPattern(editor.editPattern);
-			drawPatternLength(editor.editPattern);
-		}
+			song.pattNr--;
+			updatePtnLen();
 
-		editor.ui.updatePatternEditor = true;
+			editor.ui.updatePatternEditor = true;
+			editor.ui.updatePosSections = true;
+		}
+	}
+	else
+	{
+		if (editor.editPattern > 0)
+		{
+			editor.editPattern--;
+
+			song.pattNr = editor.editPattern;
+			updatePtnLen();
+
+			editor.ui.updatePatternEditor = true;
+			editor.ui.updatePosSections = true;
+		}
 	}
 
 	if (audioWasntLocked)
@@ -1969,6 +2013,9 @@ void pbPattLenUp(void)
 	bool audioWasntLocked;
 	uint16_t pattLen;
 
+	if (pattLens[editor.editPattern] >= 256)
+		return;
+
 	audioWasntLocked = !audio.locked;
 	if (audioWasntLocked)
 		lockAudio();
@@ -1979,8 +2026,8 @@ void pbPattLenUp(void)
 		setPatternLen(editor.editPattern, pattLen + 1);
 		checkMarkLimits();
 
-		drawPatternLength(editor.editPattern);
 		editor.ui.updatePatternEditor = true;
+		editor.ui.updatePosSections = true;
 		setSongModifiedFlag();
 	}
 
@@ -1993,6 +2040,9 @@ void pbPattLenDown(void)
 	bool audioWasntLocked;
 	uint16_t pattLen;
 
+	if (pattLens[editor.editPattern] <= 1)
+		return;
+
 	audioWasntLocked = !audio.locked;
 	if (audioWasntLocked)
 		lockAudio();
@@ -2003,12 +2053,8 @@ void pbPattLenDown(void)
 		setPatternLen(editor.editPattern, pattLen - 1);
 		checkMarkLimits();
 
-		drawPatternLength(editor.editPattern);
-
-		if (song.pattPos >= song.pattLen)
-			song.pattPos--;
-
 		editor.ui.updatePatternEditor = true;
+		editor.ui.updatePosSections = true;
 		setSongModifiedFlag();
 	}
 
@@ -2020,6 +2066,10 @@ void drawPosEdNums(int16_t songPos)
 {
 	uint8_t y;
 	int16_t entry;
+	uint32_t color1, color2;
+
+	color1 = video.palette[PAL_PATTEXT];
+	color2 = video.palette[PAL_FORGRND];
 
 	if (songPos >= song.len)
 		songPos = song.len - 1;
@@ -2049,13 +2099,13 @@ void drawPosEdNums(int16_t songPos)
 
 		if (editor.ui.extended)
 		{
-			pattTwoHexOut(8,  4 + (y * 9), PAL_PATTEXT, (uint8_t)entry);
-			pattTwoHexOut(32, 4 + (y * 9), PAL_PATTEXT, song.songTab[entry]);
+			pattTwoHexOut(8,  4 + (y * 9), (uint8_t)entry, color1);
+			pattTwoHexOut(32, 4 + (y * 9), song.songTab[entry], color1);
 		}
 		else
 		{
-			pattTwoHexOut(8,  4 + (y * 8), PAL_PATTEXT, (uint8_t)entry);
-			pattTwoHexOut(32, 4 + (y * 8), PAL_PATTEXT, song.songTab[entry]);
+			pattTwoHexOut(8,  4 + (y * 8), (uint8_t)entry, color1);
+			pattTwoHexOut(32, 4 + (y * 8), song.songTab[entry], color1);
 		}
 	}
 
@@ -2064,13 +2114,13 @@ void drawPosEdNums(int16_t songPos)
 	// middle
 	if (editor.ui.extended)
 	{
-		pattTwoHexOut(8,  23, PAL_FORGRND, (uint8_t)songPos);
-		pattTwoHexOut(32, 23, PAL_FORGRND, song.songTab[songPos]);
+		pattTwoHexOut(8,  23, (uint8_t)songPos, color2);
+		pattTwoHexOut(32, 23, song.songTab[songPos], color2);
 	}
 	else
 	{
-		pattTwoHexOut(8,  22, PAL_FORGRND, (uint8_t)songPos);
-		pattTwoHexOut(32, 22, PAL_FORGRND, song.songTab[songPos]);
+		pattTwoHexOut(8,  22, (uint8_t)songPos, color2);
+		pattTwoHexOut(32, 22, song.songTab[songPos], color2);
 	}
 
 	// bottom two
@@ -2082,13 +2132,13 @@ void drawPosEdNums(int16_t songPos)
 
 		if (editor.ui.extended)
 		{
-			pattTwoHexOut(8,  33 + (y * 9), PAL_PATTEXT, (uint8_t)entry);
-			pattTwoHexOut(32, 33 + (y * 9), PAL_PATTEXT, song.songTab[entry]);
+			pattTwoHexOut(8,  33 + (y * 9), (uint8_t)entry, color1);
+			pattTwoHexOut(32, 33 + (y * 9), song.songTab[entry], color1);
 		}
 		else
 		{
-			pattTwoHexOut(8,  32 + (y * 8), PAL_PATTEXT, (uint8_t)entry);
-			pattTwoHexOut(32, 32 + (y * 8), PAL_PATTEXT, song.songTab[entry]);
+			pattTwoHexOut(8,  32 + (y * 8), (uint8_t)entry, color1);
+			pattTwoHexOut(32, 32 + (y * 8), song.songTab[entry], color1);
 		}
 	}
 }
@@ -2213,7 +2263,7 @@ void drawPlaybackTime(void)
 	char str[2 + 1];
 	uint32_t a, MI_TimeH, MI_TimeM, MI_TimeS;
 
-	a = ((song.musicTime / 256) * 5) / 512;
+	a = ((song.musicTime >> 8) * 5) >> 9;
 	MI_TimeH = a / 3600;
 	a -= (MI_TimeH * 3600);
 	MI_TimeM = a / 60;
@@ -2252,12 +2302,12 @@ void changeLogoType(uint8_t logoType)
 	if (logoType == 0)
 	{
 		pushButtons[PB_LOGO].bitmapUnpressed = &ft2LogoBadges[(154 * 32) * 0];
-		pushButtons[PB_LOGO].bitmapPressed   = &ft2LogoBadges[(154 * 32) * 1];
+		pushButtons[PB_LOGO].bitmapPressed = &ft2LogoBadges[(154 * 32) * 1];
 	}
 	else
 	{
 		pushButtons[PB_LOGO].bitmapUnpressed = &ft2LogoBadges[(154 * 32) * 2];
-		pushButtons[PB_LOGO].bitmapPressed   = &ft2LogoBadges[(154 * 32) * 3];
+		pushButtons[PB_LOGO].bitmapPressed = &ft2LogoBadges[(154 * 32) * 3];
 	}
 
 	drawPushButton(PB_LOGO);
@@ -2270,12 +2320,12 @@ void changeBadgeType(uint8_t badgeType)
 	if (badgeType == 0)
 	{
 		pushButtons[PB_BADGE].bitmapUnpressed = &ft2InfoBadges[(25 * 32) * 0];
-		pushButtons[PB_BADGE].bitmapPressed   = &ft2InfoBadges[(25 * 32) * 1];
+		pushButtons[PB_BADGE].bitmapPressed = &ft2InfoBadges[(25 * 32) * 1];
 	}
 	else
 	{
 		pushButtons[PB_BADGE].bitmapUnpressed = &ft2InfoBadges[(25 * 32) * 2];
-		pushButtons[PB_BADGE].bitmapPressed   = &ft2InfoBadges[(25 * 32) * 3];
+		pushButtons[PB_BADGE].bitmapPressed = &ft2InfoBadges[(25 * 32) * 3];
 	}
 
 	drawPushButton(PB_BADGE);
@@ -2640,13 +2690,13 @@ static void zapSong(void)
 	lockMixerCallback();
 
 	song.len = 1;
-	song.repS = 0; // FT2 doesn't do this...
+	song.repS = 0; // Silly: FT2 doesn't do this!
 	song.speed = 125;
 	song.tempo = 6;
 	song.songPos = 0;
 	song.globVol = 64;
 
-	memset(song.name,    0, sizeof (song.name));
+	memset(song.name, 0, sizeof (song.name));
 	memset(song.songTab, 0, sizeof (song.songTab));
 
 	// zero all pattern data and reset pattern lengths
@@ -2689,7 +2739,7 @@ static void zapInstrs(void)
 	for (int16_t i = 1; i <= MAX_INST; i++)
 	{
 		freeInstr(i);
-		memset(song.instrName[i], 0, 23);
+		memset(song.instrName[i], 0, 22 + 1);
 	}
 
 	updateNewInstrument();
@@ -2760,6 +2810,7 @@ void pbToggleBadge(void)
 
 void resetChannelOffset(void)
 {
+	editor.ui.pattChanScrollShown = song.antChn > getMaxVisibleChannels();
 	editor.cursor.object = CURSOR_NOTE;
 	editor.cursor.ch = 0;
 	setScrollBarPos(SB_CHAN_SCROLL, 0, true);
@@ -2860,47 +2911,9 @@ void expandPattern(void)
 		editor.pattPos = song.pattPos;
 
 		editor.ui.updatePatternEditor = true;
-		editor.ui.updatePosSections   = true;
+		editor.ui.updatePosSections = true;
 
 		unlockMixerCallback();
 		setSongModifiedFlag();
 	}
 }
-
-const pattCoordsMouse_t pattCoordMouseTable[2][2][2] =
-{
-	/*
-		uint16_t upperRowsY, midRowY, lowerRowsY;
-		uint16_t numUpperRows;
-	*/
-
-	// no pattern stretch
-	{
-		// no pattern channel scroll
-		{
-			{ 177, 281, 293, 13 }, //   normal pattern editor
-			{  57, 217, 229, 20 }, // extended pattern editor
-		},
-
-		// pattern channel scroll
-		{
-			{ 177, 274, 286, 12 }, //   normal pattern editor
-			{  57, 210, 222, 19 }, // extended pattern editor
-		}
-	},
-
-	// pattern stretch
-	{
-		// no pattern channel scroll
-		{
-			{ 176, 275, 286,  9 }, //   normal pattern editor
-			{  56, 221, 232, 15 }, // extended pattern editor
-		},
-
-		// pattern channel scroll
-		{
-			{ 175, 274, 284,  9 }, //   normal pattern editor
-			{  55, 209, 219, 14 }, // extended pattern editor
-		},
-	}
-};

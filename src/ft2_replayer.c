@@ -6,7 +6,6 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <math.h>
-#include "ft2_audio.h"
 #include "ft2_header.h"
 #include "ft2_config.h"
 #include "ft2_gui.h"
@@ -19,23 +18,16 @@
 #include "ft2_scopes.h"
 #include "ft2_mouse.h"
 #include "ft2_sample_loader.h"
+#include "ft2_tables.h"
 
 /* This is a *huge* mess, directly ported from the original FT2 code (and modified).
 ** You will experience a lot of headaches if you dig into it...
-** If something looks to be wrong, it's probably right! */
-
-// TABLES AND VARIABLES
-
-// defined at the bottom of this file
-extern const int8_t vibSineTab[256];
-extern const uint8_t vibTab[32];
-extern const uint16_t amigaFinePeriod[12 * 8];
-extern const uint16_t amigaPeriod[12 * 8];
+** If something looks to be off, it's probably not!
+*/
 
 static bool bxxOverflow;
-static int16_t *linearPeriods, *amigaPeriods, oldPeriod;
-static uint32_t *logTab, oldRate;
-static uint32_t frequenceDivFactor, frequenceMulFactor;
+static int32_t oldPeriod;
+static uint32_t oldRate, frequenceDivFactor, frequenceMulFactor;
 static tonTyp nilPatternLine;
 
 // globally accessed
@@ -43,7 +35,8 @@ static tonTyp nilPatternLine;
 int8_t playMode = 0;
 bool linearFrqTab = false, songPlaying = false, audioPaused = false, musicPaused = false;
 volatile bool replayerBusy = false;
-int16_t *note2Period = NULL, pattLens[MAX_PATTERNS];
+const int16_t *note2Period = NULL;
+int16_t pattLens[MAX_PATTERNS];
 stmTyp stm[MAX_VOICES];
 songTyp song;
 instrTyp *instr[132];
@@ -111,6 +104,8 @@ void resetChannels(void)
 		ch->oldPan = 128;
 		ch->outPan = 128;
 		ch->finalPan = 128;
+
+		ch->stOff = !editor.chnMode[i]; // set channel mute flag from global mute flag
 	}
 
 	if (audioWasntLocked)
@@ -129,97 +124,47 @@ void removeSongModifiedFlag(void)
 	editor.updateWindowTitle = true;
 }
 
-void tuneSample(sampleTyp *s, uint32_t midCFreq)
+void tuneSample(sampleTyp *s, int32_t midCFreq)
 {
-	int32_t linearFreq, relativeNote;
-
-	if (midCFreq == 0)
+	if (midCFreq <= 0)
 	{
 		s->fine = 0;
 		s->relTon = 0;
+		return;
 	}
-	else
-	{
-		linearFreq = (int32_t)round(log(midCFreq / 8363.0) * ((12.0 * 128.0) / M_LN2));
-		s->fine = ((linearFreq + 128) & 255) - 128;
 
-		relativeNote = (int32_t)round((linearFreq - s->fine) / 128.0);
-		s->relTon = (int8_t)relativeNote;
-	}
+	double dFreq = log2(midCFreq * (1.0 / 8363.0)) * (12.0 * 128.0);
+	int32_t linearFreq = (int32_t)(dFreq + 0.5);
+	s->fine = ((linearFreq + 128) & 255) - 128;
+
+	int32_t relTon = (linearFreq - s->fine) >> 7;
+	s->relTon = (int8_t)CLAMP(relTon, -48, 71);
 }
 
-bool setPatternLen(uint16_t nr, int16_t len)
+void setPatternLen(uint16_t nr, int16_t len)
 {
 	bool audioWasntLocked;
-	tonTyp *newPtr;
 
 	assert(nr < MAX_PATTERNS);
 
-	len = CLAMP(len, 1, MAX_PATT_LEN);
-	if (len == pattLens[nr])
-		return true;
+	if ((len < 1 || len > MAX_PATT_LEN) || len == pattLens[nr])
+		return;
 
 	audioWasntLocked = !audio.locked;
 	if (audioWasntLocked)
 		lockAudio();
 
-	if (patt[nr] == NULL)
-	{
-		pattLens[nr] = len;
+	pattLens[nr] = len;
 
-		if (editor.editPattern == song.pattNr)
-			song.pattLen = pattLens[nr];
-
-		if (song.pattPos >= pattLens[nr])
-			song.pattPos = pattLens[nr] - 1;
-
-		editor.pattPos = song.pattPos;
-
-		checkMarkLimits();
-
-		if (audioWasntLocked)
-			unlockAudio();
-
-		editor.ui.updatePatternEditor = true;
-		editor.ui.updatePosSections = true;
-
-		return true;
-	}
-
-	newPtr = (tonTyp *)realloc(patt[nr], len * TRACK_WIDTH);
-	if (newPtr == NULL)
-	{
-		okBox(0, "Status message", "Not enough memory!");
-
-		if (audioWasntLocked)
-			unlockAudio();
-
-		return false;
-	}
-
-	patt[nr] = newPtr;
-
-	// if we enlarged the pattern length, wipe the new data
-	if (len >= pattLens[nr])
-	{
-		if (len > pattLens[nr])
-			memset(&patt[nr][pattLens[nr] * MAX_VOICES], 0, (len - pattLens[nr]) * TRACK_WIDTH);
-
-		pattLens[nr] = len;
-	}
-	else
-	{
-		pattLens[nr] = len;
+	if (patt[nr] != NULL)
 		killPatternIfUnused(nr);
+
+	song.pattLen = pattLens[nr];
+	if (song.pattPos >= song.pattLen)
+	{
+		song.pattPos = song.pattLen - 1;
+		editor.pattPos = song.pattPos;
 	}
-
-	if (editor.editPattern == song.pattNr)
-		song.pattLen = pattLens[nr];
-
-	if (song.pattPos >= pattLens[nr])
-		song.pattPos = pattLens[nr] - 1;
-
-	editor.pattPos = song.pattPos;
 
 	checkMarkLimits();
 
@@ -228,8 +173,6 @@ bool setPatternLen(uint16_t nr, int16_t len)
 
 	editor.ui.updatePatternEditor = true;
 	editor.ui.updatePosSections = true;
-
-	return true;
 }
 
 int16_t getUsedSamples(int16_t nr)
@@ -247,7 +190,8 @@ int16_t getUsedSamples(int16_t nr)
 		i--;
 
 	/* Yes, 'i' can be -1 here, and will be set to at least 0
-	** because of ins->ta values. Possibly an FT2 bug... */
+	** because of ins->ta values. Possibly an FT2 bug...
+	*/
 	for (j = 0; j < 96; j++)
 	{
 		if (ins->ta[j] > i)
@@ -286,7 +230,7 @@ void setFrqTab(bool linear)
 		note2Period = amigaPeriods;
 	}
 
-	// update frequency type radiobutton if it's shown
+	// update "frequency table" radiobutton, if it's shown
 	if (editor.ui.configScreenShown && editor.currConfigScreen == CONFIG_SCREEN_IO_DEVICES)
 		setConfigIORadioButtonStates();
 }
@@ -303,7 +247,7 @@ static void retrigEnvelopeVibrato(stmTyp *ch)
 {
 	instrTyp *ins;
 
-	if (!(ch->waveCtrl & 0x04)) ch->vibPos  = 0;
+	if (!(ch->waveCtrl & 0x04)) ch->vibPos = 0;
 	if (!(ch->waveCtrl & 0x40)) ch->tremPos = 0;
 
 	ch->retrigCnt = 0;
@@ -355,7 +299,7 @@ void keyOff(stmTyp *ch)
 	ins = ch->instrSeg;
 	assert(ins != NULL);
 
-	if (!(ins->envPTyp & 1)) // yes, FT2 does this (!)
+	if (!(ins->envPTyp & 1)) // yes, FT2 does this (!). Most likely a bug?
 	{
 		if (ch->envPCnt >= ins->envPP[ch->envPPos][0])
 			ch->envPCnt = ins->envPP[ch->envPPos][0] - 1;
@@ -374,16 +318,22 @@ void keyOff(stmTyp *ch)
 	}
 }
 
-// 100% FT2-accurate routine, do not touch!
-void calcReplayRate(uint32_t rate)
+void calcReplayRate(int32_t rate) // 100% FT2-accurate routine, do not touch!
 {
 	if (rate == 0)
 		return;
 
 	// for voice delta calculation
-	frequenceDivFactor = (uint32_t)round(65536.0 * 1712.0 / rate * 8363.0);
-	frequenceMulFactor = (uint32_t)round(256.0 * 65536.0 / rate * 8363.0);
-	audio.dScopeFreqMul = rate / (double)SCOPE_HZ;
+
+	double dVal, dMul = 1.0 / rate;
+
+	dVal = dMul * (65536.0 * 1712.0 * 8363.0);
+	frequenceDivFactor = (int32_t)(dVal + 0.5);
+
+	dVal = dMul * (256.0 * 65536.0 * 8363.0);
+	frequenceMulFactor = (int32_t)(dVal + 0.5);
+
+	audio.dScopeFreqMul = rate * (1.0 / SCOPE_HZ);
 
 	// for volume ramping (FT2 doesn't round here)
 	audio.quickVolSizeVal = rate / 200;
@@ -393,10 +343,10 @@ void calcReplayRate(uint32_t rate)
 }
 
 // 100% FT2-accurate routine, do not touch!
-uint32_t getFrequenceValue(uint16_t period)
+uint32_t getFrequenceValue(int32_t period)
 {
 	uint8_t shift;
-	uint16_t index;
+	int32_t index, indexQuotient, indexRemainder;
 	uint32_t rate;
 
 	if (period == 0)
@@ -408,11 +358,13 @@ uint32_t getFrequenceValue(uint16_t period)
 	if (linearFrqTab)
 	{
 		index = (12 * 192 * 4) - period;
-		shift = (14 - (index / 768)) & 0x1F;
+		indexQuotient = index / 768;
+		indexRemainder = index % 768;
 
-		// this converts to fast code even on x86 (imul + shrd)
-		rate = ((uint64_t)logTab[index % 768] * frequenceMulFactor) >> 24;
-		if (shift > 0)
+		rate = ((uint64_t)logTab[indexRemainder] * frequenceMulFactor) >> LOG_TABLE_BITS;
+
+		shift = (14 - indexQuotient) & 0x1F;
+		if (shift != 0)
 			rate >>= shift;
 	}
 	else
@@ -467,10 +419,10 @@ static void startTone(uint8_t ton, uint8_t effTyp, uint8_t eff, stmTyp *ch)
 	ch->instrSeg = ins;
 	ch->mute = ins->mute;
 
-	if (ton > 96) // non-FT2 security (should never happen because I clamp in the patt loaders now)
+	if (ton > 96) // non-FT2 security (should never happen because I clamp in the patt. loader now)
 		ton = 96;
 
-	smp = ins->ta[ton-1] & 0x0F;
+	smp = ins->ta[ton-1] & 0xF;
 	ch->sampleNr = smp;
 
 	s = &ins->samp[smp];
@@ -1162,7 +1114,7 @@ static void getNewNote(stmTyp *ch, tonTyp *p)
 	ch->eff = p->eff;
 	ch->tonTyp = (p->instr << 8) | p->ton;
 
-	if (ch->stOff == 1)
+	if (ch->stOff)
 	{
 		checkMoreEffects(ch);
 		return;
@@ -1256,9 +1208,9 @@ static void fixaEnvelopeVibrato(stmTyp *ch)
 	uint8_t envPos;
 	int16_t autoVibVal, panTmp;
 	uint16_t autoVibAmp, tmpPeriod, envVal;
-	int32_t vol, tmp32;
+	int32_t tmp32;
+	uint32_t vol;
 	instrTyp *ins;
-	double dVol;
 
 	ins = ch->instrSeg;
 
@@ -1281,7 +1233,7 @@ static void fixaEnvelopeVibrato(stmTyp *ch)
 		}
 	}
 
-	if (ch->mute != 1)
+	if (!ch->mute)
 	{
 		// *** VOLUME ENVELOPE ***
 		envVal = 0;
@@ -1292,7 +1244,7 @@ static void fixaEnvelopeVibrato(stmTyp *ch)
 
 			if (++ch->envVCnt == ins->envVP[envPos][0])
 			{
-				ch->envVAmp = (ins->envVP[envPos][1] & 0xFF) << 8;
+				ch->envVAmp = ins->envVP[envPos][1] << 8;
 
 				envPos++;
 				if (ins->envVTyp & 4)
@@ -1305,7 +1257,7 @@ static void fixaEnvelopeVibrato(stmTyp *ch)
 						{
 							envPos = ins->envVRepS;
 							ch->envVCnt = ins->envVP[envPos][0];
-							ch->envVAmp = (ins->envVP[envPos][1] & 0xFF) << 8;
+							ch->envVAmp = ins->envVP[envPos][1] << 8;
 						}
 					}
 
@@ -1332,7 +1284,7 @@ static void fixaEnvelopeVibrato(stmTyp *ch)
 						ch->envVIPValue = 0;
 						if (ins->envVP[envPos][0] > ins->envVP[envPos-1][0])
 						{
-							ch->envVIPValue = ((ins->envVP[envPos][1] - ins->envVP[envPos-1][1]) & 0xFF) << 8;
+							ch->envVIPValue = (ins->envVP[envPos][1] - ins->envVP[envPos-1][1]) << 8;
 							ch->envVIPValue /= (ins->envVP[envPos][0] - ins->envVP[envPos-1][0]);
 
 							envVal = ch->envVAmp;
@@ -1351,10 +1303,10 @@ static void fixaEnvelopeVibrato(stmTyp *ch)
 				ch->envVAmp += ch->envVIPValue;
 
 				envVal = ch->envVAmp;
-				if ((envVal >> 8) > 0x40)
+				if (envVal > 64*256)
 				{
-					if ((envVal >> 8) > (0x40+0xC0)/2)
-						envVal = 16384;
+					if (envVal > 128*256)
+						envVal = 64*256;
 					else
 						envVal = 0;
 
@@ -1362,41 +1314,27 @@ static void fixaEnvelopeVibrato(stmTyp *ch)
 				}
 			}
 
-			/* old integer method with low precision (FT2 way)
-			envVal >>= 8;
-			ch->finalVol = (song.globVol * (((envVal * ch->outVol) * ch->fadeOutAmp) >> (16 + 2))) >> 7;
+			/* calculate with 256 times more precision (vol = 0..65535)
+			** Also, vol envelope range is now 0..16384 instead of being shifted to 0..64
 			*/
 
-			/* calculate with four times more precision (+ rounding).
-			** also, env. range is now 0..16384 instead of being shifted to 0..64. */
+			uint32_t vol1 = song.globVol * ch->outVol * ch->fadeOutAmp; // 0..64 * 0..64 * 0..32768 = 0..134217728
+			uint32_t vol2 = envVal << 7; // 0..16384 * 2^7 = 0..2097152
 
-			dVol = song.globVol * ch->outVol * ch->fadeOutAmp;
-			dVol *= envVal; // we need a float mul because it would overflow 32-bit integer
-			dVol *= 1.0 / ((64.0 * 64.0 * 32768.0 * 16384.0) / 2048.0); // 0..2048 (real FT2 is 0..256)
+			vol = ((uint64_t)vol1 * vol2) >> 32; // 0..65536
 
-			vol = (int32_t)(dVol + 0.5);
-			if (vol > 2048)
-				vol = 2048;
-
-			ch->finalVol = (uint16_t)vol;
 			ch->status |= IS_Vol;
 		}
 		else
 		{
-			/* old integer method with low precision (FT2 way)
-			ch->finalVol = (song.globVol * (((ch->outVol << 4) * ch->fadeOutAmp) >> 16)) >> 7;
-			*/
-
-			// calculate with four times more precision (+ rounding)
-			dVol = song.globVol * ch->outVol * ch->fadeOutAmp;
-			dVol *= 1.0 / ((64.0 * 64.0 * 32768.0) / 2048.0); // 0..2048 (real FT2 is 0..256)
-
-			vol = (int32_t)(dVol + 0.5);
-			if (vol > 2048)
-				vol = 2048;
-
-			ch->finalVol = (uint16_t)vol;
+			// calculate with four times more precision (finalVol = 0..65535)
+			vol = (song.globVol * ch->outVol * ch->fadeOutAmp) >> 11; // 0..64 * 0..64 * 0..32768 = 0..65536
 		}
+
+		if (vol > 65535)
+			vol = 65535; // range is now 0..65535 to prevent MUL overflow when voice volume is calculated
+
+		ch->finalVol = (uint16_t)vol;
 	}
 	else
 	{
@@ -1413,7 +1351,7 @@ static void fixaEnvelopeVibrato(stmTyp *ch)
 
 		if (++ch->envPCnt == ins->envPP[envPos][0])
 		{
-			ch->envPAmp = (ins->envPP[envPos][1] & 0xFF) << 8;
+			ch->envPAmp = ins->envPP[envPos][1] << 8;
 
 			envPos++;
 			if (ins->envPTyp & 4)
@@ -1427,7 +1365,7 @@ static void fixaEnvelopeVibrato(stmTyp *ch)
 						envPos = ins->envPRepS;
 
 						ch->envPCnt = ins->envPP[envPos][0];
-						ch->envPAmp = (ins->envPP[envPos][1] & 0xFF) << 8;
+						ch->envPAmp = ins->envPP[envPos][1] << 8;
 					}
 				}
 
@@ -1454,7 +1392,7 @@ static void fixaEnvelopeVibrato(stmTyp *ch)
 					ch->envPIPValue = 0;
 					if (ins->envPP[envPos][0] > ins->envPP[envPos-1][0])
 					{
-						ch->envPIPValue = ((ins->envPP[envPos][1] - ins->envPP[envPos-1][1]) & 0xFF) << 8;
+						ch->envPIPValue = (ins->envPP[envPos][1] - ins->envPP[envPos-1][1]) << 8;
 						ch->envPIPValue /= (ins->envPP[envPos][0] - ins->envPP[envPos-1][0]);
 
 						envVal = ch->envPAmp;
@@ -1473,10 +1411,10 @@ static void fixaEnvelopeVibrato(stmTyp *ch)
 			ch->envPAmp += ch->envPIPValue;
 
 			envVal = ch->envPAmp;
-			if ((envVal >> 8) > 0x40)
+			if (envVal > 64*256)
 			{
-				if ((envVal >> 8) > (0x40+0xC0)/2)
-					envVal = 16384;
+				if (envVal > 128*256)
+					envVal = 64*256;
 				else
 					envVal = 0;
 
@@ -1489,9 +1427,9 @@ static void fixaEnvelopeVibrato(stmTyp *ch)
 			panTmp = 0 - panTmp;
 		panTmp += 128;
 
-		envVal -= (32 * 256);
+		envVal -= 32*256;
 
-		ch->finalPan = ch->outPan + ((((int16_t)envVal * (panTmp << 3)) >> 16) & 0xFF);
+		ch->finalPan = ch->outPan + (uint8_t)(((int16_t)envVal * panTmp) >> 13);
 		ch->status |= IS_Pan;
 	}
 	else
@@ -1500,7 +1438,11 @@ static void fixaEnvelopeVibrato(stmTyp *ch)
 	}
 
 	// *** AUTO VIBRATO ***
+#ifdef HAS_MIDI
 	if (ch->midiVibDepth > 0 || ins->vibDepth > 0)
+#else
+	if (ins->vibDepth > 0)
+#endif
 	{
 		if (ch->eVibSweep > 0)
 		{
@@ -1522,12 +1464,13 @@ static void fixaEnvelopeVibrato(stmTyp *ch)
 			autoVibAmp = ch->eVibAmp;
 		}
 
+#ifdef HAS_MIDI
 		// non-FT2 hack to make modulation wheel work when auto vibrato rate is zero
 		if (ch->midiVibDepth > 0 && ins->vibRate == 0)
 			ins->vibRate = 0x20;
 
 		autoVibAmp += ch->midiVibDepth;
-
+#endif
 		ch->eVibPos += ins->vibRate;
 
 		     if (ins->vibTyp == 1) autoVibVal = (ch->eVibPos > 127) ? 64 : -64; // square
@@ -1548,11 +1491,14 @@ static void fixaEnvelopeVibrato(stmTyp *ch)
 	else
 	{
 		ch->finalPeriod = ch->outPeriod;
+
+#ifdef HAS_MIDI
 		if (midi.enable)
 		{
 			ch->finalPeriod -= ch->midiPitch;
 			ch->status |= IS_Period;
 		}
+#endif
 	}
 }
 
@@ -2203,7 +2149,7 @@ void resetMusic(void)
 	if (audioWasntLocked)
 		unlockAudio();
 
-	setPos(0, 0);
+	setPos(0, 0, false);
 
 	if (!songPlaying)
 	{
@@ -2212,7 +2158,7 @@ void resetMusic(void)
 	}
 }
 
-void setPos(int16_t songPos, int16_t pattPos)
+void setPos(int16_t songPos, int16_t pattPos, bool resetTimer)
 {
 	bool audioWasntLocked = !audio.locked;
 	if (audioWasntLocked)
@@ -2255,7 +2201,8 @@ void setPos(int16_t songPos, int16_t pattPos)
 		}
 	}
 
-	song.timer = 1;
+	if (resetTimer)
+		song.timer = 1;
 
 	if (audioWasntLocked)
 		unlockAudio();
@@ -2421,8 +2368,10 @@ void freeInstr(int16_t nr)
 
 	for (int8_t i = 0; i < 16; i++) // free sample data
 	{
-		if (instr[nr]->samp[i].pek != NULL)
-			free(instr[nr]->samp[i].pek);
+		sampleTyp *s = &instr[nr]->samp[i];
+
+		if (s->origPek != NULL)
+			free(s->origPek);
 	}
 
 	free(instr[nr]);
@@ -2440,8 +2389,10 @@ void freeAllInstr(void)
 		{
 			for (int8_t j = 0; j < MAX_SMP_PER_INST; j++) // free sample data
 			{
-				if (instr[i]->samp[j].pek != NULL)
-					free(instr[i]->samp[j].pek);
+				sampleTyp *s = &instr[i]->samp[j];
+
+				if (s->origPek != NULL)
+					free(s->origPek);
 			}
 
 			free(instr[i]);
@@ -2461,8 +2412,8 @@ void freeSample(int16_t nr, int16_t nr2)
 	pauseAudio(); // voice sample pointers are now cleared
 
 	s = &instr[nr]->samp[nr2];
-	if (s->pek != NULL)
-		free(s->pek);
+	if (s->origPek != NULL)
+		free(s->origPek);
 
 	memset(s, 0, sizeof (sampleTyp));
 
@@ -2628,7 +2579,7 @@ void updateChanNums(void)
 		}
 	}
 
-	editor.ui.pattChanScrollShown = (song.antChn > getMaxVisibleChannels());
+	editor.ui.pattChanScrollShown = song.antChn > getMaxVisibleChannels();
 
 	if (editor.ui.patternEditorShown)
 	{
@@ -2725,24 +2676,6 @@ void closeReplayer(void)
 	freeAllInstr();
 	freeAllPatterns();
 
-	if (logTab != NULL)
-	{
-		free(logTab);
-		logTab = NULL;
-	}
-
-	if (amigaPeriods != NULL)
-	{
-		free(amigaPeriods);
-		amigaPeriods = NULL;
-	}
-
-	if (linearPeriods != NULL)
-	{
-		free(linearPeriods);
-		linearPeriods = NULL;
-	}
-
 	if (instr[0] != NULL)
 	{
 		free(instr[0]);
@@ -2764,66 +2697,17 @@ void closeReplayer(void)
 
 bool setupReplayer(void)
 {
-	uint16_t i, k;
-	int16_t noteVal;
-
-	// allocate memory for pointers
+	int32_t i;
 
 	for (i = 0; i < MAX_PATTERNS; i++)
 		pattLens[i] = 64;
 
-	if (linearPeriods == NULL)
-		linearPeriods = (int16_t *)malloc(sizeof (int16_t) * ((12 * 10 * 16) + 16));
-
-	if (amigaPeriods == NULL)
-		amigaPeriods = (int16_t *)malloc(sizeof (int16_t) * ((12 * 10 * 16) + 16));
-
-	if (logTab == NULL)
-		logTab = (uint32_t *)malloc(sizeof (int32_t) * 768);
-
-	if (linearPeriods == NULL || amigaPeriods == NULL || logTab == NULL)
-	{
-		showErrorMsgBox("Not enough memory!");
-		return false;
-	}
-
-	// generate tables, bit-exact to original FT2
-
-	// log table
-	for (i = 0; i < 768; i++)
-		logTab[i] = (uint32_t)round(16777216.0 * exp((i / 768.0) * M_LN2));
-
-	// linear table
-	for (i = 0; i < (12*10*16)+16; i++)
-		linearPeriods[i] = (((12 * 10 * 16) + 16) * 4) - (i * 4);
-
-	/* Amiga period table
-	** This has a LUT read overflow in real FT2 making the last 17 values trash. We patch those later. */
-	k = 0;
-	for (i = 0; i < 10; i++)
-	{
-		for (uint16_t j = 0; j < 96; j++)
-		{
-			noteVal = ((amigaFinePeriod[j] * 64) + (-1 + (1 << i))) >> (i + 1);
-
-			amigaPeriods[k++] = noteVal;
-			amigaPeriods[k++] = noteVal; // copy for interpolation applied later
-		}
-	}
-
-	// interpolate between points
-	for (i = 0; i < (12*10*8)+7; i++)
-		amigaPeriods[(i * 2) + 1] = (amigaPeriods[i * 2] + amigaPeriods[(i * 2) + 2]) / 2;
-
-	// the following 17 values are confirmed to be the correct table LUT overflow values in real FT2
-	amigaPeriods[1919] = 22; amigaPeriods[1920] = 16; amigaPeriods[1921] =  8; amigaPeriods[1922] =  0;
-	amigaPeriods[1923] = 16; amigaPeriods[1924] = 32; amigaPeriods[1925] = 24; amigaPeriods[1926] = 16;
-	amigaPeriods[1927] =  8; amigaPeriods[1928] =  0; amigaPeriods[1929] = 16; amigaPeriods[1930] = 32;
-	amigaPeriods[1931] = 24; amigaPeriods[1932] = 16; amigaPeriods[1933] =  8; amigaPeriods[1934] =  0;
-	amigaPeriods[1935] =  0;
-
 	playMode = PLAYMODE_IDLE;
 	songPlaying = false;
+
+	// unmute all channels (must be done before resetChannels() call)
+	for (i = 0; i < MAX_VOICES; i++)
+		editor.chnMode[i] = 1;
 
 	resetChannels();
 
@@ -2836,7 +2720,7 @@ bool setupReplayer(void)
 	song.initialTempo = song.tempo;
 
 	setFrqTab(true);
-	setPos(0, 0);
+	setPos(0, 0, true);
 
 	if (!allocateInstr(0))
 	{
@@ -2861,10 +2745,6 @@ bool setupReplayer(void)
 	for (i = 0; i < 16; i++)
 		instr[131]->samp[i].pan = 128;
 
-	// unmute all channels
-	for (i = 0; i < MAX_VOICES; i++)
-		editor.chnMode[i] = true;
-
 	editor.tmpPattern = 65535; // pattern editor update/redraw kludge
 	return true;
 }
@@ -2876,9 +2756,9 @@ void startPlaying(int8_t mode, int16_t row)
 	assert(mode != PLAYMODE_IDLE && mode != PLAYMODE_EDIT);
 
 	if (mode == PLAYMODE_PATT || mode == PLAYMODE_RECPATT)
-		setPos(-1, row);
+		setPos(-1, row, true);
 	else
-		setPos(editor.songPos, row);
+		setPos(editor.songPos, row, true);
 
 	playMode = mode;
 	songPlaying = true;
@@ -2926,8 +2806,10 @@ void stopPlaying(void)
 	if (songWasPlaying)
 		editor.pattPos = song.pattPos;
 
+#ifdef HAS_MIDI
 	midi.currMIDIVibDepth = 0;
 	midi.currMIDIPitch = 0;
+#endif
 
 	memset(editor.keyOnTab, 0, sizeof (editor.keyOnTab));
 
@@ -3169,7 +3051,7 @@ void stopVoices(void)
 	editor.curPlaySmp = 255;
 
 	stopAllScopes();
-	resetDitherSeed();
+	resetAudioDither();
 	resetOldRates();
 
 	// wait for scope thread to finish, so that we know pointers aren't deprecated
@@ -3181,12 +3063,15 @@ void stopVoices(void)
 
 void decSongPos(void)
 {
+	if (song.songPos == 0)
+		return;
+
 	bool audioWasntLocked = !audio.locked;
 	if (audioWasntLocked)
 		lockAudio();
 
 	if (song.songPos > 0)
-		setPos(song.songPos - 1, 0);
+		setPos(song.songPos - 1, 0, true);
 
 	if (audioWasntLocked)
 		unlockAudio();
@@ -3194,12 +3079,15 @@ void decSongPos(void)
 
 void incSongPos(void)
 {
+	if (song.songPos == song.len-1)
+		return;
+
 	bool audioWasntLocked = !audio.locked;
 	if (audioWasntLocked)
 		lockAudio();
 
 	if (song.songPos < song.len-1)
-		setPos(song.songPos + 1, 0);
+		setPos(song.songPos + 1, 0, true);
 
 	if (audioWasntLocked)
 		unlockAudio();
@@ -3404,62 +3292,3 @@ void setSyncedReplayerVars(void)
 		editor.ui.updatePatternEditor = true;
 	}
 }
-
-// TABLES
-
-const char modSig[32][5] =
-{
-	"1CHN", "2CHN", "3CHN", "4CHN", "5CHN", "6CHN", "7CHN", "8CHN",
-	"9CHN", "10CH", "11CH", "12CH", "13CH", "14CH", "15CH", "16CH",
-	"17CH", "18CH", "19CH", "20CH", "21CH", "22CH", "23CH", "24CH",
-	"25CH", "26CH", "27CH", "28CH", "29CH", "30CH", "31CH", "32CH"
-};
-
-const int8_t vibSineTab[256] = 
-{
-	 0,-2,-3,-5,-6,-8,-9,-11,-12,-14,-16,-17,-19,-20,-22,-23,-24,-26,-27,
-   -29,-30,-32,-33,-34,-36,-37,-38,-39,-41,-42,-43,-44,-45,-46,-47,-48,
-   -49,-50,-51,-52,-53,-54,-55,-56,-56,-57,-58,-59,-59,-60,-60,-61,-61,
-   -62,-62,-62,-63,-63,-63,-64,-64,-64,-64,-64,-64,-64,-64,-64,-64,-64,
-   -63,-63,-63,-62,-62,-62,-61,-61,-60,-60,-59,-59,-58,-57,-56,-56,-55,
-   -54,-53,-52,-51,-50,-49,-48,-47,-46,-45,-44,-43,-42,-41,-39,-38,-37,
-   -36,-34,-33,-32,-30,-29,-27,-26,-24,-23,-22,-20,-19,-17,-16,-14,-12,
-   -11,-9,-8,-6,-5,-3,-2,0,2,3,5,6,8,9,11,12,14,16,17,19,20,22,23,24,26,
-	27,29,30,32,33,34,36,37,38,39,41,42,43,44,45,46,47,48,49,50,51,52,53,
-	54,55,56,56,57,58,59,59,60,60,61,61,62,62,62,63,63,63,64,64,64,64,64,
-	64,64,64,64,64,64,63,63,63,62,62,62,61,61,60,60,59,59,58,57,56,56,55,
-	54,53,52,51,50,49,48,47,46,45,44,43,42,41,39,38,37,36,34,33,32,30,29,
-	27,26,24,23,22,20,19,17,16,14,12,11,9,8,6,5,3,2
-};
-
-const uint8_t vibTab[32] =
-{
-	  0, 24, 49, 74, 97,120,141,161,
-	180,197,212,224,235,244,250,253,
-	255,253,250,244,235,224,212,197,
-	180,161,141,120, 97, 74, 49, 24
-};
-
-const uint16_t amigaPeriod[12 * 8] =
-{
-	4*1712,4*1616,4*1524,4*1440,4*1356,4*1280,4*1208,4*1140,4*1076,4*1016,4*960,4*906,
-	2*1712,2*1616,2*1524,2*1440,2*1356,2*1280,2*1208,2*1140,2*1076,2*1016,2*960,2*906,
-	1712,1616,1524,1440,1356,1280,1208,1140,1076,1016,960,906,
-	856,808,762,720,678,640,604,570,538,508,480,453,
-	428,404,381,360,339,320,302,285,269,254,240,226,
-	214,202,190,180,170,160,151,143,135,127,120,113,
-	107,101,95,90,85,80,75,71,67,63,60,56,
-	53,50,47,45,42,40,37,35,33,31,30,28
-};
-
-const uint16_t amigaFinePeriod[12 * 8] =
-{
-	907,900,894,887,881,875,868,862,856,850,844,838,
-	832,826,820,814,808,802,796,791,785,779,774,768,
-	762,757,752,746,741,736,730,725,720,715,709,704,
-	699,694,689,684,678,675,670,665,660,655,651,646,
-	640,636,632,628,623,619,614,610,604,601,597,592,
-	588,584,580,575,570,567,563,559,555,551,547,543,
-	538,535,532,528,524,520,516,513,508,505,502,498,
-	494,491,487,484,480,477,474,470,467,463,460,457
-};

@@ -126,7 +126,7 @@ pushButton_t pushButtons[NUM_PUSHBUTTONS] =
 	{ 590,  90, 39, 16, 0, 0, "69-70",           NULL,    NULL,                 pbSetInstrBank14 },
 	{ 590, 107, 39, 16, 0, 0, "71-78",           NULL,    NULL,                 pbSetInstrBank15 },
 	{ 590, 124, 39, 16, 0, 0, "79-80",           NULL,    NULL,                 pbSetInstrBank16 },
-	{ 590, 144, 39, 27, 0, 0, "Swap",            "Bank",  NULL,                 pbSwapInstrBank },
+	{ 590, 144, 39, 27, 0, 0, "Swap",            "bank",  NULL,                 pbSwapInstrBank },
 	{ 566,  99, 18, 13, 1, 4, ARROW_UP_STRING,   NULL,    sampleListScrollUp,   NULL },
 	{ 566, 140, 18, 13, 1, 4, ARROW_DOWN_STRING, NULL,    sampleListScrollDown, NULL },
 
@@ -305,9 +305,9 @@ pushButton_t pushButtons[NUM_PUSHBUTTONS] =
 
 	// ------ CONFIG LEFT PANEL PUSHBUTTONS ------
 	//x, y,   w,   h,  p, d, text #1,         text #2, funcOnDown, funcOnUp
-	{ 3, 104, 104, 16, 0, 0, "Reset config.", NULL,    NULL,       resetConfig },
-	{ 3, 121, 104, 16, 0, 0, "Load config.",  NULL,    NULL,       loadConfig2 },
-	{ 3, 138, 104, 16, 0, 0, "Save config.",  NULL,    NULL,       saveConfig2 },
+	{ 3, 104, 104, 16, 0, 0, "Reset config",  NULL,    NULL,       resetConfig },
+	{ 3, 121, 104, 16, 0, 0, "Load config",   NULL,    NULL,       loadConfig2 },
+	{ 3, 138, 104, 16, 0, 0, "Save config",   NULL,    NULL,       saveConfig2 },
 	{ 3, 155, 104, 16, 0, 0, "Exit",          NULL,    NULL,       exitConfigScreen },
 
 	// ------ CONFIG AUDIO PUSHBUTTONS ------
@@ -316,7 +316,7 @@ pushButton_t pushButtons[NUM_PUSHBUTTONS] =
 	{ 365,  16, 18, 13, 1, 4, ARROW_UP_STRING,    NULL,    scrollAudOutputDevListUp,   NULL },
 	{ 365,  72, 18, 13, 1, 4, ARROW_DOWN_STRING,  NULL,    scrollAudOutputDevListDown, NULL },
 	{ 365, 103, 18, 13, 1, 4, ARROW_UP_STRING,    NULL,    scrollAudInputDevListUp,    NULL },
-	{ 365, 158, 18, 13, 1, 4, ARROW_DOWN_STRING,  NULL,    scrollAudInputDevListDown,  NULL },
+	{ 365, 137, 18, 13, 1, 4, ARROW_DOWN_STRING,  NULL,    scrollAudInputDevListDown,  NULL },
 	{ 508, 132, 21, 13, 1, 4, ARROW_LEFT_STRING,  NULL,    configAmpDown,              NULL },
 	{ 608, 132, 21, 13, 1, 4, ARROW_RIGHT_STRING, NULL,    configAmpUp,                NULL },
 	{ 508, 158, 21, 13, 1, 0, ARROW_LEFT_STRING,  NULL,    configMasterVolDown,        NULL },
@@ -345,17 +345,19 @@ pushButton_t pushButtons[NUM_PUSHBUTTONS] =
 	{ 556, 158, 22, 13, 1, 4, ARROW_LEFT_STRING,              NULL,    configMIDISensDown,  NULL },
 	{ 607, 158, 22, 13, 1, 4, ARROW_RIGHT_STRING,             NULL,    configMIDISensUp,    NULL },
 
+#ifdef HAS_MIDI
 	// ------ CONFIG MIDI PUSHBUTTONS ------
 	//x,   y,   w,  h,  p, d, text #1,           text #2, funcOnDown,                 funcOnUp
 	{ 483,   2, 18, 13, 1, 4, ARROW_UP_STRING,   NULL,    scrollMidiInputDevListUp,   NULL },
 	{ 483, 158, 18, 13, 1, 4, ARROW_DOWN_STRING, NULL,    scrollMidiInputDevListDown, NULL },
+#endif
 
 	// ------ DISK OP. PUSHBUTTONS ------
 	//x,   y,   w,  h,  p, d, text #1,           text #2, funcOnDown,       funcOnUp
 	{  70,   2, 58, 16, 0, 0, "Save",            NULL,    NULL,             pbDiskOpSave },
 	{  70,  19, 58, 16, 0, 0, "Delete",          NULL,    NULL,             pbDiskOpDelete },
 	{  70,  36, 58, 16, 0, 0, "Rename",          NULL,    NULL,             pbDiskOpRename },
-	{  70,  53, 58, 16, 0, 0, "Makedir",         NULL,    NULL,             pbDiskOpMakeDir },
+	{  70,  53, 58, 16, 0, 0, "Make dir",        NULL,    NULL,             pbDiskOpMakeDir },
 	{  70,  70, 58, 16, 0, 0, "Refresh",         NULL,    NULL,             pbDiskOpRefresh },
 	{  70,  87, 58, 16, 0, 0, "Set path",        NULL,    NULL,             pbDiskOpSetPath },
 	{  70, 104, 58, 16, 0, 0, "Show all",        NULL,    NULL,             pbDiskOpShowAll },

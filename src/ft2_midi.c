@@ -1,3 +1,5 @@
+#ifdef HAS_MIDI
+
 // for finding memory leaks in debug mode with Visual Studio
 #if defined _DEBUG && defined _MSC_VER
 #include <crtdbg.h>
@@ -28,7 +30,7 @@ static RtMidiPtr midiDev;
 
 static inline void midiInSetChannel(uint8_t status)
 {
-	recMIDIValidChn = (config.recMIDIAllChn || (status & 0x0F) == config.recMIDIChn -1);
+	recMIDIValidChn = (config.recMIDIAllChn || (status & 0xF) == config.recMIDIChn-1);
 }
 
 static inline void midiInKeyAction(int8_t m, uint8_t mv)
@@ -43,7 +45,7 @@ static inline void midiInKeyAction(int8_t m, uint8_t mv)
 	if (mv > 0 && vol == 0)
 		vol = 1;
 
-	if (mv > 0 && !config.recMIDIVelosity)
+	if (mv > 0 && !config.recMIDIVelocity)
 		vol = -1; // don't record volume (velocity)
 
 	m -= 11;
@@ -408,7 +410,7 @@ void drawMidiInputList(void)
 	uint16_t y;
 	int32_t deviceEntry;
 
-	clearRect(114, 4, 365, 164);
+	clearRect(114, 4, 365, 165);
 
 	if (!midi.initThreadDone || midiDev == NULL || midi.numInputDevices == 0)
 	{
@@ -431,7 +433,7 @@ void drawMidiInputList(void)
 			if (midi.inputDeviceName != NULL)
 			{
 				if (_stricmp(midi.inputDeviceName, midi.inputDeviceNames[deviceEntry]) == 0)
-					fillRect(114, y, 365, 10, PAL_BUTTONS); // selection background color
+					fillRect(114, y, 365, 10, PAL_BOXSLCT); // selection background color
 			}
 
 			tmpString = utf8ToCp437(midi.inputDeviceNames[deviceEntry], true);
@@ -518,3 +520,7 @@ int32_t SDLCALL initMidiFunc(void *ptr)
 
 	return true;
 }
+
+#else
+typedef int make_iso_compilers_happy; // kludge: prevent warning about empty .c file if HAS_MIDI is not defined
+#endif

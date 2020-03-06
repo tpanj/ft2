@@ -38,8 +38,8 @@ radioButton_t radioButtons[NUM_RADIOBUTTONS] =
 
 	// ------ NIBBLES SCREEN RADIOBUTTONS ------
 	//x, y,   w,   group,                       funcOnUp
-	{  4, 105, 62, RB_GROUP_NIBBLES_PLAYERS,    nibblesSet1Player },
-	{  4, 119, 69, RB_GROUP_NIBBLES_PLAYERS,    nibblesSet2Players },
+	{  4, 105, 61, RB_GROUP_NIBBLES_PLAYERS,    nibblesSet1Player },
+	{  4, 119, 68, RB_GROUP_NIBBLES_PLAYERS,    nibblesSet2Players },
 	{ 79, 117, 55, RB_GROUP_NIBBLES_DIFFICULTY, nibblesSetNovice },
 	{ 79, 131, 63, RB_GROUP_NIBBLES_DIFFICULTY, nibblesSetAverage },
 	{ 79, 145, 34, RB_GROUP_NIBBLES_DIFFICULTY, nibblesSetPro },
@@ -62,10 +62,13 @@ radioButton_t radioButtons[NUM_RADIOBUTTONS] =
 
 	// ------ CONFIG SCREEN LEFT RADIOBUTTONS ------
 	//x, y,  w,  group,                  funcOnUp
-	{ 4, 19, 88, RB_GROUP_CONFIG_SELECT, rbConfigIODevices },
+	{ 4, 19, 87, RB_GROUP_CONFIG_SELECT, rbConfigIODevices },
 	{ 4, 35, 59, RB_GROUP_CONFIG_SELECT, rbConfigLayout },
 	{ 4, 51, 99, RB_GROUP_CONFIG_SELECT, rbConfigMiscellaneous },
+
+#ifdef HAS_MIDI
 	{ 4, 67, 74, RB_GROUP_CONFIG_SELECT, rbConfigMidiInput },
+#endif
 
 	// ------ CONFIG AUDIO ------
 
@@ -74,7 +77,6 @@ radioButton_t radioButtons[NUM_RADIOBUTTONS] =
 	{ 390,  16,  46, RB_GROUP_CONFIG_SOUND_BUFF_SIZE, rbConfigSbs512  },
 	{ 390,  30, 113, RB_GROUP_CONFIG_SOUND_BUFF_SIZE, rbConfigSbs1024 },
 	{ 390,  44,  50, RB_GROUP_CONFIG_SOUND_BUFF_SIZE, rbConfigSbs2048 },
-	{ 390,  58,  76, RB_GROUP_CONFIG_SOUND_BUFF_SIZE, rbConfigSbs4096 },
 
 	// audio bit depth
 	//x,   y,   w,   group,                           funcOnUp
@@ -92,10 +94,16 @@ radioButton_t radioButtons[NUM_RADIOBUTTONS] =
 #endif
 	{ 509, 44,  66, RB_GROUP_CONFIG_AUDIO_FREQ, rbConfigAudio96kHz },
 
+	// audio input frequency
+	//x,   y,  w,   group,                            funcOnUp
+	{ 180, 156, 60, RB_GROUP_CONFIG_AUDIO_INPUT_FREQ, rbConfigAudioInput44kHz },
+	{ 251, 156, 60, RB_GROUP_CONFIG_AUDIO_INPUT_FREQ, rbConfigAudioInput48kHz },
+	{ 322, 156, 60, RB_GROUP_CONFIG_AUDIO_INPUT_FREQ, rbConfigAudioInput96kHz },
+
 	// frequency table
 	//x,   y,   w,   group,                      funcOnUp
-	{ 509,  89, 117, RB_GROUP_CONFIG_FREQ_TABLE, rbConfigFreqTableAmiga  },
-	{ 509, 103, 120, RB_GROUP_CONFIG_FREQ_TABLE, rbConfigFreqTableLinear },
+	{ 509,  89, 114, RB_GROUP_CONFIG_FREQ_TABLE, rbConfigFreqTableAmiga  },
+	{ 509, 103, 117, RB_GROUP_CONFIG_FREQ_TABLE, rbConfigFreqTableLinear },
 
 	// ------ CONFIG LAYOUT ------
 
@@ -104,7 +112,7 @@ radioButton_t radioButtons[NUM_RADIOBUTTONS] =
 	{ 115, 120, 41, RB_GROUP_CONFIG_MOUSE, rbConfigMouseNice },
 	{ 178, 120, 41, RB_GROUP_CONFIG_MOUSE, rbConfigMouseUgly },
 	{ 115, 134, 47, RB_GROUP_CONFIG_MOUSE, rbConfigMouseAwful },
-	{ 178, 134, 62, RB_GROUP_CONFIG_MOUSE, rbConfigMouseUseable },
+	{ 178, 134, 55, RB_GROUP_CONFIG_MOUSE, rbConfigMouseUsable },
 
 	// mouse busy shape
 	//x,   y,   w,  group,                      funcOnUp
@@ -150,7 +158,7 @@ radioButton_t radioButtons[NUM_RADIOBUTTONS] =
 	{ 399, 131,  40, RB_GROUP_CONFIG_PAL_PRESET, rbConfigPalGold },
 	{ 512, 131,  56, RB_GROUP_CONFIG_PAL_PRESET, rbConfigPalViolent },
 	{ 399, 145,  87, RB_GROUP_CONFIG_PAL_PRESET, rbConfigPalHeavyMetal },
-	{ 512, 145,  91, RB_GROUP_CONFIG_PAL_PRESET, rbConfigPalWhyColors },
+	{ 512, 145,  87, RB_GROUP_CONFIG_PAL_PRESET, rbConfigPalWhyColors },
 	{ 399, 159,  54, RB_GROUP_CONFIG_PAL_PRESET, rbConfigPalJungle },
 	{ 512, 159,  90, RB_GROUP_CONFIG_PAL_PRESET, rbConfigPalUserDefined },
 
